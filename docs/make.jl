@@ -11,7 +11,7 @@ DocMeta.setdocmeta!(
 makedocs(;
     sitename="MultiAgentPathFindingMILP.jl",
     authors="Chun-Tso Tsai",
-    format=Documenter.HTML(;prettyurls=get(ENV, "CI", "false") == "true",),
+    format=Documenter.HTML(; prettyurls=get(ENV, "CI", "false") == "true"),
     modules=[MultiAgentPathFindingMILP],
     pages=["Home" => "index.md", "Algorithms" => "algorithms.md"],
 )

@@ -161,7 +161,6 @@ Returns the selected vertices and edges for each agent
 - `silent::Bool`: turn of printing of model status printing
 
 """
-
 function maph_continuous_time(
     network::AbstractGraph,
     source_vertices::Vector{Int},
@@ -198,11 +197,17 @@ function maph_continuous_time(
 
     # parse vertices
     agents, selection = axes(vertex_selection_vars)
-    valid_vertices = [[v for v in selection if vertex_selection_vars[agent_id, v] > 0.5] for agent_id in agents]
+    valid_vertices = [
+        [v for v in selection if vertex_selection_vars[agent_id, v] > 0.5] for
+        agent_id in agents
+    ]
 
     # parse edges
     agents, selection = axes(edge_selection_vars)
-    valid_edges = [[ed for ed in selection if edge_selection_vars[agent_id, ed] > 0.5] for agent_id in agents]
+    valid_edges = [
+        [ed for ed in selection if edge_selection_vars[agent_id, ed] > 0.5] for
+        agent_id in agents
+    ]
 
     return valid_vertices, valid_edges
 end
