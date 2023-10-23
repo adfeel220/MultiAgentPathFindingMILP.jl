@@ -9,7 +9,11 @@ using Graphs: AbstractGraph
 using Graphs: weights, nv, src, dst, edges, vertices, inneighbors, outneighbors
 using JuMP: Model
 using JuMP: @variable, @constraint, @objective
+using JuMP: set_silent, optimize!, termination_status, value
+using HiGHS: HiGHS
+using MathOptInterface: OPTIMAL
 
+export maph_continuous_time
 
 include("conflict.jl")
 include("continuous_time.jl")

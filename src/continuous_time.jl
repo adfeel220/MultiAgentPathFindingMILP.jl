@@ -135,3 +135,74 @@ function maph_continuous_time!(
 
     return model
 end
+
+"""
+    maph_continuous_time(
+        network, source_vertices, target_vertices, vertex_cost, edge_cost;
+        integer, optimizer, silent
+    )
+
+Compute the MAPH problem in continuous time from a set of source vertices to target vertices.
+Traversal of each vertex and edge comes with a cost.
+Returns the selected vertices and edges for each agent
+
+# Arguments
+
+- `network::AbstractGraph`: a directed graph representing the map
+- `source_vertices::Vector{Int}`: an array of vertices indicating each agent's source vertex (the vertex an agent starts travel from)
+- `target_vertices::Vector{Int}`: an array of vertices indicating each agent's target vertex (the vertex an agent end its travel at)
+- `vertex_cost::Array{<:Real}`: costs for staying at each vertex. dimension = ([agent,] vertex)
+- `edge_cost::Array{<:Real}`: costs for crossing each edge. dimension = ([agent,] vertex, vertex), we use (from_vertex, to_vertex) to indicate an edge
+
+# Keyword arguments
+
+- `integer::Bool`: whether the path should be integer-valued or real-valued (default is `true`)
+- `optimizer`: JuMP-compatible solver (default is `HiGHS.Optimizer`)
+- `silent::Bool`: turn of printing of model status printing
+
+"""
+
+function maph_continuous_time(
+    network::AbstractGraph,
+    source_vertices::Vector{Int},
+    target_vertices::Vector{Int},
+    # dim: [agent,] vertex 
+    vertex_cost::Array{T}=zeros(Float64, nv(network)),
+    # dim: [agent,] from_vertex, to_vertex
+    edge_cost::Array{T}=weights(network);
+    integer::Bool=true,
+    optimizer=HiGHS.Optimizer,
+    silent::Bool=true,
+) where {T<:Real}
+    model = Model(optimizer)
+    if silent
+        set_silent(model)
+    end
+
+    maph_continuous_time!(
+        model,
+        network,
+        source_vertices,
+        target_vertices,
+        vertex_cost,
+        edge_cost;
+        edge_var_name=:edge,
+        vertex_var_name=:vertex,
+        integer=integer,
+    )
+    optimize!(model)
+    @assert termination_status(model) == OPTIMAL
+
+    edge_selection_vars = value.(model[:edge])
+    vertex_selection_vars = value.(model[:vertex])
+
+    # parse vertices
+    agents, selection = axes(vertex_selection_vars)
+    valid_vertices = [[v for v in selection if vertex_selection_vars[agent_id, v] > 0.5] for agent_id in agents]
+
+    # parse edges
+    agents, selection = axes(edge_selection_vars)
+    valid_edges = [[ed for ed in selection if edge_selection_vars[agent_id, ed] > 0.5] for agent_id in agents]
+
+    return valid_vertices, valid_edges
+end
