@@ -6,7 +6,7 @@ A module for Multi-Agent Pathfinding with Mixed-Integer Linear Programming appro
 module MultiAgentPathFindingMILP
 
 using Graphs: AbstractGraph
-using Graphs: weights, nv, src, dst, edges, vertices, inneighbors, outneighbors
+using Graphs: src, dst, edges, vertices, inneighbors, outneighbors
 using JuMP: Model
 using JuMP: @variable, @constraint, @objective
 using JuMP: set_silent, optimize!, termination_status, value

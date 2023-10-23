@@ -15,7 +15,7 @@ where the indices are the agent IDs and the values are the IDs of the vertices t
 
 """
 function check_overlap_on_vertex(
-    agent_location, msg::String=""; raise_assertion::Bool=false
+    agent_location::Vector{Int}, msg::String=""; raise_assertion::Bool=false
 )::Bool
     is_overlap = length(Set(agent_location)) < length(agent_location)
 

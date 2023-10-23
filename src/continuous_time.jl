@@ -14,9 +14,9 @@ function maph_continuous_time!(
     source_vertices::Vector{Int},
     target_vertices::Vector{Int},
     # dim: [agent,] vertex 
-    vertex_cost::Array{T}=zeros(Float64, (length(source_vertices), nv(network))),
+    vertex_cost::Array{T},
     # dim: [agent,] from_vertex, to_vertex
-    edge_cost::Array{T}=weights(network);
+    edge_cost::Array{T};
     edge_var_name,
     vertex_var_name,
     integer::Bool=true,
@@ -166,9 +166,9 @@ function maph_continuous_time(
     source_vertices::Vector{Int},
     target_vertices::Vector{Int},
     # dim: [agent,] vertex 
-    vertex_cost::Array{T}=zeros(Float64, nv(network)),
+    vertex_cost::Array{T},
     # dim: [agent,] from_vertex, to_vertex
-    edge_cost::Array{T}=weights(network);
+    edge_cost::Array{T};
     integer::Bool=true,
     optimizer=HiGHS.Optimizer,
     silent::Bool=true,
