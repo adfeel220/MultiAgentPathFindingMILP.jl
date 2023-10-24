@@ -11,10 +11,10 @@ MathOptInterface = "b8f27783-ece8-5eb3-8dc8-9495eed66fee"
 
 [compat]
 Graphs = "1.9"
-HiGHS = "1.7"
-JuMP = "1.15"
+HiGHS = "1"
+JuMP = "1"
 MathOptInterface = "1.20"
-julia = "1.6"
+julia = "1"
 
 [extras]
 Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
