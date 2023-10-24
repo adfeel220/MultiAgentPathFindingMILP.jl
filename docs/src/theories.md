@@ -3,21 +3,10 @@
 This document includes the theoretical backgrounds of the package
 
 ## Table of Contents
-- [Theories](#theories)
-  - [Table of Contents](#table-of-contents)
-  - [Introduction](#introduction)
-  - [Discrete-time MAPH](#discrete-time-maph)
-    - [Objective](#objective)
-    - [Constraints](#constraints)
-      - [Connectivity Constraints](#connectivity-constraints)
-      - [Conflict Constraints](#conflict-constraints)
-  - [Continuous-time MAPH](#continuous-time-maph)
-    - [Objective](#objective-1)
-    - [Constraints](#constraints-1)
-      - [Connectivity Constraints](#connectivity-constraints-1)
-      - [Conflict Constraints](#conflict-constraints-1)
-    - [Proposed Algorithm](#proposed-algorithm)
-
+```@contents
+Pages=["theories.md"]
+Depth=3
+```
 
 ## Introduction
 
@@ -51,9 +40,11 @@ Commonly, the two most common objectives for MAPH problems are as follows. Let $
 In this article, we focus the philosophy of `sum of costs`
 
 
-## Discrete-time MAPH
+## Discrete-time Vertex-binding MAPH
 
 We formulate the MAPH problem in discrete time. That is, the actions are done within a fixed unit time, and only 1 action allowed at each unit time.
+
+The vertex-binding setting means we combine the visit of vertex with the edge traversal. That is, if an agent travels via some incoming edge of vertex $v$, the agent must pay the cost of visiting vertex $v$. Visiting a vertex and going through an edge happen at the same time frame.
 
 ### Objective
 
@@ -139,9 +130,116 @@ At each time frame within agent's lifespan, an agent can only be present at one 
 
   Note that nonzero vertex safe window already prevents swapping.
 
+
+## Discrete-time Non-binding MAPH
+
+We formulate the MAPH problem in discrete time. That is, the actions are done within a fixed unit time, and only 1 action allowed at each unit time.
+
+A non-binding setting means an agent can use a vertex as a stepping stone without paying the cost on it. One can imagine the case when an express train passes through a station without stopping. Equivalently, the agent can only choose to either go on a vertex or go on an edge at each time slot, different from the binding case where an agent does both within a time slot.
+
+### Objective
+
+```math
+\min_{x, y} \sum_{t = 1}^T \sum_{i \in \mathcal{A}} \left( \sum_{e \in \mathcal{E}} x_{i,e,t} c^{(E)}_{i,t} + \sum_{v \in \mathcal{V}} y_{i,v,t} c^{(V)}_{i,t} \right)
+```
+- `Edge selection variable` $x_{i,e,t} \in \lbrace 0, 1 \rbrace$: $x_{i,e,t} = 1$ when agent $i$ travels through edge $e$ at time $t$
+- `Edge cost` $c^{(E)}_{i,t} \in \mathbb{N}$: cost for agent $i$ to travel through edge $e$ at time $t$
+
+- `Vertex selection variable` $y_{i,v,t} \in \lbrace 0, 1 \rbrace$: $y_{i,e,t} = 1$ when agent $i$ stays in vertex $v$ at time $t$
+- `Vertex cost` $c^{(V)}_{i,t} \in \mathbb{N}$: cost for agent $i$ to stay in vertex $v$ at time $t$
+
+- `Time limit` $T$: Total execution time. Let $\mathcal{T} = \lbrace 1, 2, \dots, T \rbrace$. Also, let the lifespan of each agent be $\mathcal{T}_i = \lbrace t^{(s)}_i, \dots, \min\left( t_i^{(g)}, T \right) \rbrace$
+
+As the costs $c^{(E)}_{i,t}$ and $c^{(V)}_{i,t}$ are some constants, the only variables are $x_{i,e,t}$ and $y_{i,v,t}$.
+
+In the conventional setting of minimizing time of travel, the costs $c^{(E)}_{i,t}$ is the time of travel and $c^{(V)}_{i,t}$ is the required time of stay in the station. Because we have the discrete time setting, we have $c^{(E)}_{i,t} = c^{(V)}_{i,t} = 1$
+
+### Constraints
+
+#### Connectivity Constraints
+
+No action can be executed before the time of departure. i.e. $\forall i \in \mathcal{A}, v \in \mathcal{V}, e \in \mathcal{E}$
+```math
+y_{i,v,t} = x_{i,e,t} = 0 \; \forall t \in \mathcal{T} \setminus \mathcal{T}_i
+```
+
+Across time starting from the agent's departure, the agent must eventually leave the source vertex. $\forall i \in \mathcal{A}$
+```math
+\sum_{t \in \mathcal{T}_i} \left( \sum_{e = (v_i^{(s)}, w) \in \mathcal{E}} x_{i,e,t} - \sum_{e' = (u, v_i^{(s)}) \in \mathcal{E}} x_{i,e',t} \right) = 1
+```
+
+Similarly, across time starting from the agent's departure, the agent must eventually enter the target vertex and stays there. $\forall i \in \mathcal{A}$
+```math
+\sum_{t \in \mathcal{T}_i} \left( \sum_{e = (u, v_i^{(g)}) \in \mathcal{E}} x_{i,e,t} + \sum_{e' = (v_i^{(g)}, w) \in \mathcal{E}} x_{i,e',t} \right) = 1
+```
+
+An agent can only leave the vertex if it's already there. $\forall i \in \mathcal{A}, t \in \mathcal{T}, v \in \mathcal{V}$
+```math
+y_{i,v,t-1} + \sum_{e = (u, v) \in \mathcal{E}} x_{i,e,t-1} = y_{i,v,t} + \sum_{e' = (v, w) \in \mathcal{E}} x_{i,e',t}
+```
+
+Agent $i$ must choose either to stay at the vertex or go to the next vertex. i.e. $\forall i \in \mathcal{A}, v \in \mathcal{V}, t \in \mathcal{T}_i$
+```math
+y_{i,v,t} + \sum_{e = (v, w) \in \mathcal{E}} x_{i,e,t-1} \leq 1
+```
+
+At each time frame within agent's lifespan, an agent can only be present at one place. Either on a vertex or on an edge. i.e. $\forall i \in \mathcal{A}, t \in \mathcal{T}_i$
+```math
+\sum_{v \in \mathcal{V}} y_{i,v,t} + \sum_{e \in \mathcal{E}} x_{i,e,t} = 1
+```
+
+Also, we can force some agents to travel through certain middle vertices $\mathcal{M}_i$ before reaching destination by setting
+```math
+\sum_{t \in \mathcal{T}_i}y_{i,v',t} \geq 1 \; \forall v' \in \mathcal{M}_i
+```
+
+One can also enforce vertex-binding for some vertex $v'$ if it's required
+```math
+y_{i,v',t} \geq \sum_{e = (u, v') \in \mathcal{E}} x_{i,e,t-1}
+```
+
+
+#### Conflict Constraints
+
+- **Vertex Conflict**: At any given time slot, no more than 1 agent can occupy a vertex $v$. i.e. $\forall v \in \mathcal{V}, t \in \mathcal{T}$
+  ```math
+  \sum_{i \in \mathcal{A}} y_{i,v,t} \leq 1
+  ```
+
+  A safety window $w_v^{(V)} \in \mathbb{N}$ of occupying a vertex $v$ can be considered as $\forall t \in \mathcal{T}$
+  ```math
+  \sum_{t' = t}^{t + w_v^{(V)}} \sum_{i \in \mathcal{A}} y_{i,v,t'} \leq 1
+  ```
+  The conventional vertex conflict is a special case of $w_v^{(V)} = 0$
+
+- **Edge Conflict**: At any given time slot, no more than 1 agent can occupy an edge $e$. i.e. $\forall e \in \mathcal{E}, t \in \mathcal{T}$
+  ```math
+  \sum_{i \in \mathcal{A}} x_{i,e,t} \leq 1
+  ```
+
+  A safety window $w_e^{(E)} \in \mathbb{N}$ of occupying an edge $e$ can be considered as $\forall t \in \mathcal{T}$
+  ```math
+  \sum_{t' = t}^{t + w_e^{(E)}} \sum_{i \in \mathcal{A}} x_{i,e,t'} \leq 1
+  ```
+  The conventional vertex conflict is a special case of $w_e^{(E)} = 0$
+
+- **Following Conflict**: Following conflict can be solved by applying a vertex safe window $w_v^{(V)} > 0$. Alternatively, we can write $\forall t \in \mathcal{T}, v \in \mathcal{V}$
+
+  ```math
+  \sum_{i \in \mathcal{A}} \left( y_{i,v,t} + \sum_{e \in (u, v) \in \mathcal{E}} x_{i,e,t} \right) \leq 1
+  ```
+
+- **Swapping Conflict**: A swapping conflict between agent $i$ going through edge $e = (u,v)$ and agent $j$ going through edge $e' = (v, u)$ can be formulated as follows. $\forall t \in \mathcal{T}$
+
+  ```math
+  \sum_{i \in \mathcal{A}} x_{i,e,t} + x_{i,e',t} \leq 1
+  ```
+
+  Note that nonzero vertex safe window already prevents swapping.
+
 ## Continuous-time MAPH
 
-Consider the time being continuous, and the agents are allowed to have different speed. We can also separate the **cost** function from the travel time, we can have different cost like budget, etc.
+Consider the time being continuous, and the agents are allowed to have different speed. We can also separate the **cost** function from the travel time, we can have different cost like budget, etc. There's no notion of vertex-binding or not since it's linked to the setting of vertex waiting time (see below notion of $\tau_{i,v}^{(V)}$).
 
 ### Objective
 
@@ -207,6 +305,11 @@ y_{i,v} =
 This constraint is equivalent to
 ```math
 y_{i,v} = \sum_{e = (u,v) \in \mathcal{E}} x_{i,e}
+```
+
+Additionally, we can force some agents to travel through certain middle vertices $\mathcal{M}_i$ before reaching destination by setting
+```math
+y_{i,v'} = 1 \; \forall v' \in \mathcal{M}_i
 ```
 
 #### Conflict Constraints

@@ -4,6 +4,11 @@
 MultiAgentPathFindingMILP
 ```
 
+## Table of Contents
+```@contents
+Pages=["algorithms.md"]
+```
+
 ## Continuous-time
 
 ```@docs
