@@ -25,4 +25,14 @@ using JuliaFormatter
     @testset "Doctests" begin
         doctest(MultiAgentPathFindingMILP)
     end
+
+    @testset verbose = true "Algorithms" begin
+        @testset "Conflict" begin
+            include("conflict.jl")
+        end
+
+        @testset "Continuous Time" begin
+            include("continuous_time.jl")
+        end
+    end
 end

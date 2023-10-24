@@ -1,21 +1,22 @@
 """
-check_overlap_on_vertex(
-        agent_location;
+    check_overlap_on_vertex(
+        agent_location, msg="";
         raise_assertion=false
     )
 
 # Arguments
 
-`agent_location::Vertex{Int}`: the location of agents in terms of vertices,
+- `agent_location`: the location of agents in terms of vertices as an iterable,
 where the indices are the agent IDs and the values are the IDs of the vertices they occupy
+- `msg::String`: A message as prefix before the default error message, by defualt ""
 
 # Keyword arguments
 
-`raise_assertion::Bool`: whether to raise an assertion error when overlapping agents are detected
+- `raise_assertion::Bool`: whether to raise an assertion error when overlapping agents are detected
 
 """
 function check_overlap_on_vertex(
-    agent_location::Vector{Int}, msg::String=""; raise_assertion::Bool=false
+    agent_location, msg::String=""; raise_assertion::Bool=false
 )::Bool
     is_overlap = length(Set(agent_location)) < length(agent_location)
 
