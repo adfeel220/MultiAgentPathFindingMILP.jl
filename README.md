@@ -32,7 +32,7 @@ For each agent, the travel time is
 t_i^{(g)} - t_i^{(s)} = \sum_{e \in \mathcal{E}} x_{i,e} \tau_{i,e}^{(E)} = \sum_{e \in \mathcal{E}} x_{i,e} \frac{\ell(e)}{\nu_{i,e}^{(max)}} = \sum_{e \in \mathcal{E}} x_{i,e} \frac{\ell(e)}{\min(\nu_i^{(max)}, \nu_e^{(max)})}
 ```
 
-where $\ell(e)$ is the length of edge $e$; $\nu_{i,e}^{(max)}$ is the maximum speed of agent $i$ on edge $e$. This $\nu_{i,e}^{(max)}$ can be further divided into 2 components, $\nu_{i}^{(max)} being $the maximum speed of agent $i$ and the $\nu_e^{(max)}$ maximum speed allowed on edge $e$.
+where $\ell(e)$ is the length of edge $e$; $\nu_{i,e}^{(max)}$ is the maximum speed of agent $i$ on edge $e$. This $\nu_{i,e}^{(max)}$ can be further divided into 2 components, $\nu_{i}^{(max)}$ being the maximum speed of agent $i$ and the $\nu_e^{(max)}$ maximum speed allowed on edge $e$.
 
 
 ### Constraints
@@ -130,7 +130,7 @@ With the base case
   - $M$ is a large enough number as the planning length;
   - $\xi_{i,v}^-$ is the prior safe time-interval before agent $i$'s arrival at vertex $v$;
   - $\xi_{i,v}^+$ is the posterior safe time-interval after agent $i$'s departure at vertex $v$;
-  - $\delta_{i,j,v} \in \{0,1\}$ is the binary variable for the decision making.
+  - $\delta_{i,j,v} \in \{0,1\}$ is the binary variable for the decision-making.
 
   This means agent $i$ occupies vertex $v$ from time $S_i = \bar{t}_{i,v} - y_{i,v} \xi_{i,v}^-$ until time $E_i = \bar{t}_{i,v} + y_{i,v} \tau_{i,v}^{(V)} + y_{i,v} \xi_{i,v}^+$ without any enforced gap $G=0$. During this time period, no overlapping can happen between any two agents.
 

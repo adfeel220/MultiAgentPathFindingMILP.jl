@@ -2,11 +2,27 @@
 """
     maph_continuous_time!(
         model,
-        network, source_vertices, target_vertices, edge_cost;
-        var_name, integer,
+        network, source_vertices, target_vertices, vertex_cost, edge_cost;
+        vertex_var_name, edge_var_name, integer,
     )
 
 Modify a JuMP model by adding the variable, constraints and objective to compute continuous-time MAPH problem
+
+# Arguments
+
+- `model::Model`: `JuMP model` to be modified (adding variable, constraints, and objective)
+- `network::AbstractGraph`: a directed graph representing the map
+- `source_vertices::Vector{Int}`: an array of vertices indicating each agent's source vertex (the vertex an agent starts travel from)
+- `target_vertices::Vector{Int}`: an array of vertices indicating each agent's target vertex (the vertex an agent end its travel at)
+- `vertex_cost::Array{<:Real}`: costs for staying at each vertex. dimension = ([agent,] vertex)
+- `edge_cost::Array{<:Real}`: costs for crossing each edge. dimension = ([agent,] vertex, vertex), we use (from_vertex, to_vertex) to indicate an edge
+
+# Keyword arguments
+
+- `vertex_var_name`: name of vertex selection variables, will be intepreted as a symbol
+- `edge_var_name`: name of edge selection variables, will be intepreted as a symbol
+- `integer::Bool`: whether to apply integer programming, apply linear relaxation otherwise
+
 """
 function maph_continuous_time!(
     model::Model,
@@ -17,8 +33,8 @@ function maph_continuous_time!(
     vertex_cost::Array{T},
     # dim: [agent,] from_vertex, to_vertex
     edge_cost::Array{T};
-    edge_var_name,
-    vertex_var_name,
+    vertex_var_name=:vertex,
+    edge_var_name=:edge,
     integer::Bool=true,
 ) where {T<:Real}
     @assert length(source_vertices) == length(target_vertices) "The number of source vertices does not match the number of target vertices"
@@ -44,6 +60,7 @@ function maph_continuous_time!(
     ## Constraints
     for (agent_id, (agent_source, agent_target)) in
         enumerate(zip(source_vertices, target_vertices))
+
         # Agents start at their source vertex
         @constraint(model, vertex_select_vars[agent_id, agent_source] == 1)
         # Agents end at their target vertex
@@ -185,8 +202,8 @@ function maph_continuous_time(
         target_vertices,
         vertex_cost,
         edge_cost;
-        edge_var_name=:edge,
         vertex_var_name=:vertex,
+        edge_var_name=:edge,
         integer=integer,
     )
     optimize!(model)
