@@ -6,16 +6,17 @@ A module for Multi-Agent Pathfinding with Mixed-Integer Linear Programming appro
 module MultiAgentPathFindingMILP
 
 using Graphs: AbstractGraph
-using Graphs: src, dst, edges, vertices, inneighbors, outneighbors
+using Graphs: src, dst, edges, vertices, inneighbors, outneighbors, nv, ne
 using JuMP: Model
 using JuMP: @variable, @constraint, @objective
 using JuMP: set_silent, optimize!, termination_status, value
 using HiGHS: HiGHS
 using MathOptInterface: OPTIMAL
 
-export maph_continuous_time
+export maph_continuous_time, maph_discrete_time
 
 include("conflict.jl")
 include("continuous_time.jl")
+include("discrete_time.jl")
 
 end
