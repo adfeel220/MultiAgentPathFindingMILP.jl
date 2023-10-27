@@ -13,7 +13,9 @@ makedocs(;
     authors="Chun-Tso Tsai",
     format=Documenter.HTML(; prettyurls=get(ENV, "CI", "false") == "true"),
     modules=[MultiAgentPathFindingMILP],
-    pages=["Home" => "index.md", "Theories" => "theories.md", "Algorithms" => "algorithms.md"],
+    pages=[
+        "Home" => "index.md", "Theories" => "theories.md", "Algorithms" => "algorithms.md"
+    ],
 )
 
 # Documenter can also automatically deploy documentation to gh-pages.
