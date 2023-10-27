@@ -2,8 +2,8 @@
 """
     maph_discrete_time!(
         model,
-        network, source_vertices, target_vertices, vertex_cost, edge_cost, timeout;
-        vertex_var_name, edge_var_name, integer,
+        network, source_vertices, target_vertices, vertex_cost, edge_cost, departure_time;
+        time_duration, vertex_var_name, edge_var_name, integer,vertex_binding
     )
 
 Modify a JuMP model by adding the variable, constraints and objective to compute discrete-time MAPH problem
@@ -153,16 +153,44 @@ function maph_discrete_time!(
             end
         end
     end
+
+    # Objective
+    if ndims(edge_cost) == 3
+        edge_objective = sum(
+            edge_cost[agent_id, u, v] * edge_select_vars[agent_id, (u, v), t] for
+            (u, v) in edge_tuples, agent_id in 1:n_agents, t in 0:(time_duration - 1)
+        )
+    else
+        edge_objective = sum(
+            edge_cost[u, v] * edge_select_vars[agent_id, (u, v), t] for
+            (u, v) in edge_tuples, agent_id in 1:n_agents, t in 0:(time_duration - 1)
+        )
+    end
+
+    if ndims(vertex_cost) == 2
+        vertex_objective = sum(
+            vertex_cost[agent_id, v] * vertex_select_vars[agent_id, v, t] for
+            v in vertices(network), agent_id in 1:n_agents, time in 0:(time_duration - 1)
+        )
+    else
+        vertex_objective = sum(
+            vertex_cost[v] * vertex_select_vars[agent_id, v, t] for v in vertices(network),
+            agent_id in 1:n_agents, t in 0:(time_duration - 1)
+        )
+    end
+
+    @objective(model, Min, edge_objective + vertex_objective)
 end
 
 """
     maph_discrete_time(
-        network, source_vertices, target_vertices, vertex_cost, edge_cost;
-        integer, optimizer, silent
+        network, source_vertices, target_vertices, vertex_cost, edge_cost, departure_time;
+        time_duration, integer, vertex_binding, optimizer, silent
     )
 
-Compute the MAPH problem in discrete time from a set of source vertices to target vertices.
+Compute the MAPH problem in discrete time from a set of source vertices to target vertices within a time span.
 Traversal of each vertex and edge comes with a cost.
+Each agent has a unique departure time from its source vertex.
 Returns the selected vertices and edges for each agent
 
 # Arguments
@@ -172,10 +200,13 @@ Returns the selected vertices and edges for each agent
 - `target_vertices::Vector{Int}`: an array of vertices indicating each agent's target vertex (the vertex an agent end its travel at)
 - `vertex_cost::Array{<:Real}`: costs for staying at each vertex. dimension = ([agent,] vertex)
 - `edge_cost::Array{<:Real}`: costs for crossing each edge. dimension = ([agent,] vertex, vertex), we use (from_vertex, to_vertex) to indicate an edge
+- `departure_time::Vector{Int}`:  (default is `zeros(Int, length(source_vertices))`)
 
 # Keyword arguments
 
+- `time_duration::Int`: the maximum time the system runs (default is number of edges of `network`)
 - `integer::Bool`: whether the path should be integer-valued or real-valued (default is `true`)
+- `vertex_binding::Bool`: whether required to stay and pay the cost for every traversal of vertex
 - `optimizer`: JuMP-compatible solver (default is `HiGHS.Optimizer`)
 - `silent::Bool`: turn of printing of model status printing
 
@@ -223,15 +254,19 @@ function maph_discrete_time(
     # parse vertices
     agents, selection, timestamps = axes(vertex_selection_vars)
     valid_vertices = [
-        [(t, v) for v in selection if vertex_selection_vars[agent_id, v, t] > 0.5] for
-        agent_id in agents, t in timestamps
+        [
+            (t, v) for
+            v in selection, t in timestamps if vertex_selection_vars[agent_id, v, t] > 0.5
+        ] for agent_id in agents
     ]
 
     # parse edges
     agents, selection, timestamps = axes(edge_selection_vars)
     valid_edges = [
-        [(t, ed) for ed in selection if edge_selection_vars[agent_id, ed, t] > 0.5] for
-        agent_id in agents, t in timestamps
+        [
+            (t, ed) for
+            ed in selection, t in timestamps if edge_selection_vars[agent_id, ed, t] > 0.5
+        ] for agent_id in agents
     ]
 
     return valid_vertices, valid_edges
