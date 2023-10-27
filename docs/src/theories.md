@@ -201,9 +201,9 @@ y_{i,v',t} \geq \sum_{e = (u, v') \in \mathcal{E}} x_{i,e,t-1}
 
 #### Conflict Constraints
 
-- **Vertex Conflict**: At any given time slot, no more than 1 agent can occupy a vertex $v$. i.e. $\forall v \in \mathcal{V}, t \in \mathcal{T}$
+- **Vertex Conflict**: At any given time slot, no more than 1 agent can occupy or overpass a vertex $v$. i.e. $\forall v \in \mathcal{V}, t \in \mathcal{T}$
   ```math
-  \sum_{i \in \mathcal{A}} y_{i,v,t} \leq 1
+  \sum_{i \in \mathcal{A}} \left( y_{i,v,t}  + \sum_{e = (u, v) \in \mathcal{E}} x_{i,e,t} \right) \leq 1
   ```
 
   A safety window $w_v^{(V)} \in \mathbb{N}$ of occupying a vertex $v$ can be considered as $\forall t \in \mathcal{T}$
@@ -226,7 +226,7 @@ y_{i,v',t} \geq \sum_{e = (u, v') \in \mathcal{E}} x_{i,e,t-1}
 - **Following Conflict**: Following conflict can be solved by applying a vertex safe window $w_v^{(V)} > 0$. Alternatively, we can write $\forall t \in \mathcal{T}, v \in \mathcal{V}$
 
   ```math
-  \sum_{i \in \mathcal{A}} \left( y_{i,v,t} + \sum_{e \in (u, v) \in \mathcal{E}} x_{i,e,t} \right) \leq 1
+  \sum_{i \in \mathcal{A}} \left( y_{i,v,t} + \sum_{e = (u, v) \in \mathcal{E}} x_{i,e,t} + \sum_{e' = (v, w) \in \mathcal{E}} x_{i,e',t} \right) \leq 1
   ```
 
 - **Swapping Conflict**: A swapping conflict between agent $i$ going through edge $e = (u,v)$ and agent $j$ going through edge $e' = (v, u)$ can be formulated as follows. $\forall t \in \mathcal{T}$
