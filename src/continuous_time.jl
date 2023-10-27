@@ -2,7 +2,7 @@
 """
     maph_continuous_time!(
         model,
-        network, source_vertices, target_vertices, vertex_cost, edge_cost;
+        network, source_vertices, target_vertices, vertex_cost, edge_cost, departure_time;
         vertex_var_name, edge_var_name, integer,
     )
 
@@ -32,7 +32,8 @@ function maph_continuous_time!(
     # dim: [agent,] vertex 
     vertex_cost::Array{T},
     # dim: [agent,] from_vertex, to_vertex
-    edge_cost::Array{T};
+    edge_cost::Array{T},
+    departure_time::Vector{Float64}=zeros(Float64, length(source_vertices));
     vertex_var_name=:vertex,
     edge_var_name=:edge,
     integer::Bool=true,
@@ -42,6 +43,7 @@ function maph_continuous_time!(
     check_overlap_on_vertex(target_vertices, "Invalid target vertices for agents")
     @assert 1 <= ndims(vertex_cost) <= 2 "Vertex cost can only be 2 dimensional (agent, vertex) or 1 (vertex), but get $(ndims(vertex_cost))-dimensions"
     @assert 2 <= ndims(edge_cost) <= 3 "Edge cost can only be 3 dimensional (agent, vertex, vertex) or 2 (vertex, vertex), but get $(ndims(edge_cost))-dimensions"
+    @assert all(departure_time .>= zero(eltype(departure_time))) "Departure time must be non-negative"
 
     edge_tuples = [(src(ed), dst(ed)) for ed in edges(network)]
     n_agents = length(source_vertices)
@@ -108,9 +110,12 @@ function maph_continuous_time!(
 
         # If an agent travels via edge (u, v), it must stop at v
         for v in vertices(network)
+            if v in agent_source
+                continue
+            end
             @constraint(
                 model,
-                vertex_select_vars[agent_id, v] >=
+                vertex_select_vars[agent_id, v] ==
                     sum(edge_select_vars[agent_id, (u, v)] for u in inneighbors(network, v))
             )
         end
@@ -119,32 +124,25 @@ function maph_continuous_time!(
     # Objective
     if ndims(edge_cost) == 3
         edge_objective = sum(
-            sum(
-                edge_cost[agent_id, u, v] * edge_select_vars[agent_id, (u, v)] for
-                (u, v) in edge_tuples
-            ) for agent_id in 1:n_agents
+            edge_cost[agent_id, u, v] * edge_select_vars[agent_id, (u, v)] for
+            (u, v) in edge_tuples, agent_id in 1:n_agents
         )
     else
         edge_objective = sum(
-            sum(
-                edge_cost[u, v] * edge_select_vars[agent_id, (u, v)] for
-                (u, v) in edge_tuples
-            ) for agent_id in 1:n_agents
+            edge_cost[u, v] * edge_select_vars[agent_id, (u, v)] for (u, v) in edge_tuples,
+            agent_id in 1:n_agents
         )
     end
 
     if ndims(vertex_cost) == 2
         vertex_objective = sum(
-            sum(
-                vertex_cost[agent_id, v] * vertex_select_vars[agent_id, v] for
-                v in vertices(network)
-            ) for agent_id in 1:n_agents
+            vertex_cost[agent_id, v] * vertex_select_vars[agent_id, v] for
+            v in vertices(network), agent_id in 1:n_agents
         )
     else
         vertex_objective = sum(
-            sum(
-                vertex_cost[v] * vertex_select_vars[agent_id, v] for v in vertices(network)
-            ) for agent_id in 1:n_agents
+            vertex_cost[v] * vertex_select_vars[agent_id, v] for v in vertices(network),
+            agent_id in 1:n_agents
         )
     end
 
@@ -155,7 +153,7 @@ end
 
 """
     maph_continuous_time(
-        network, source_vertices, target_vertices, vertex_cost, edge_cost;
+        network, source_vertices, target_vertices, vertex_cost, edge_cost, departure_time;
         integer, optimizer, silent
     )
 
@@ -170,6 +168,7 @@ Returns the selected vertices and edges for each agent
 - `target_vertices::Vector{Int}`: an array of vertices indicating each agent's target vertex (the vertex an agent end its travel at)
 - `vertex_cost::Array{<:Real}`: costs for staying at each vertex. dimension = ([agent,] vertex)
 - `edge_cost::Array{<:Real}`: costs for crossing each edge. dimension = ([agent,] vertex, vertex), we use (from_vertex, to_vertex) to indicate an edge
+- `departure_time::Vector{Float64}`: departure time of each agent (default is `zeros(Float64, length(source_vertices))`)
 
 # Keyword arguments
 
@@ -185,7 +184,8 @@ function maph_continuous_time(
     # dim: [agent,] vertex 
     vertex_cost::Array{T},
     # dim: [agent,] from_vertex, to_vertex
-    edge_cost::Array{T};
+    edge_cost::Array{T},
+    departure_time::Vector{Float64}=zeros(Float64, length(source_vertices));
     integer::Bool=true,
     optimizer=HiGHS.Optimizer,
     silent::Bool=true,
@@ -201,7 +201,8 @@ function maph_continuous_time(
         source_vertices,
         target_vertices,
         vertex_cost,
-        edge_cost;
+        edge_cost,
+        departure_time;
         vertex_var_name=:vertex,
         edge_var_name=:edge,
         integer=integer,
