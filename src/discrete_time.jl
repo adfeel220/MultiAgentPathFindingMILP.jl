@@ -170,7 +170,7 @@ function maph_discrete_time!(
     if ndims(vertex_cost) == 2
         vertex_objective = sum(
             vertex_cost[agent_id, v] * vertex_select_vars[agent_id, v, t] for
-            v in vertices(network), agent_id in 1:n_agents, time in 0:(time_duration - 1)
+            v in vertices(network), agent_id in 1:n_agents, t in 0:(time_duration - 1)
         )
     else
         vertex_objective = sum(
