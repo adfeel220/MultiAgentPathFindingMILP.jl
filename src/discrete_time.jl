@@ -159,9 +159,13 @@ function maph_discrete_time!(
     # vertex conflict: at any given time, no more than 1 agent can occupy a vertex
     for v in vertices(network), t in 0:(time_duration - 1)
         @constraint(
-            model, sum(vertex_select_vars[agent_id, v, t] + sum(
-                edge_select_vars[agent_id, (prev_v, v), t] for prev_v in inneighbors(network, v)
-            ) for agent_id in 1:n_agents) <= 1
+            model,
+            sum(
+                vertex_select_vars[agent_id, v, t] + sum(
+                    edge_select_vars[agent_id, (prev_v, v), t] for
+                    prev_v in inneighbors(network, v)
+                ) for agent_id in 1:n_agents
+            ) <= 1
         )
     end
     # edge conflict: at any given time, no more than 1 agent can occupy an edge
@@ -170,14 +174,9 @@ function maph_discrete_time!(
             model, sum(edge_select_vars[agent_id, ed, t] for agent_id in 1:n_agents) <= 1
         )
     end
-    
+
     # Swapping conflict
-    # visited_edge = Set{NTuple{2,Int}}()
     for (u, v) in edge_tuples, t in 0:(time_duration - 1)
-        # if (u, v) in visited_edge
-        #     continue
-        # end
-        # union!(visited_edge, [(u, v), (v, u)])
         @constraint(
             model,
             sum(
