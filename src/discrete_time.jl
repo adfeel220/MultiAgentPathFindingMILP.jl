@@ -176,14 +176,19 @@ function maph_discrete_time!(
     end
 
     # Swapping conflict
-    for (u, v) in edge_tuples, t in 0:(time_duration - 1)
-        @constraint(
-            model,
-            sum(
-                edge_select_vars[agent_id, (u, v), t] +
-                edge_select_vars[agent_id, (v, u), t] for agent_id in 1:n_agents
-            ) <= 1
-        )
+    for (u, v) in edge_tuples
+        if (v, u) ∉ edge_tuples
+            continue
+        end
+        for t in 0:(time_duration - 1)
+            @constraint(
+                model,
+                sum(
+                    edge_select_vars[agent_id, (u, v), t] +
+                    edge_select_vars[agent_id, (v, u), t] for agent_id in 1:n_agents
+                ) <= 1
+            )
+        end
     end
 
     # Objective
