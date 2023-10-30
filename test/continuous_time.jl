@@ -30,7 +30,7 @@ edge_cost[6, 7] = 1.0
 edge_cost[6, 8] = 1.0
 edge_cost .+= transpose(edge_cost)
 
-valid_vertices, valid_edges = maph_continuous_time(
+valid_vertices, valid_edges = mapf_continuous_time(
     network, source_vertices, target_vertices, vertex_cost, edge_cost
 )
 
