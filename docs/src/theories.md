@@ -10,9 +10,9 @@ Depth=3
 
 ## Introduction
 
-We investigate the general formulation of MAPH problems as binary mixed-integer programming.
+We investigate the general formulation of MAPF problems as binary mixed-integer programming.
 
-In plain language, a Multi-Agent Path Finding (MAPH) problem is that a group of agents wants to travel through a network. Each agent has its own starting point and destination. We need to find a routing schedule that determines the path of all agents where they arrive at their destinations without colliding each other.
+In plain language, a Multi-Agent Path Finding (MAPF) problem is that a group of agents wants to travel through a network. Each agent has its own starting point and destination. We need to find a routing schedule that determines the path of all agents where they arrive at their destinations without colliding each other.
 
 Let's first introduce some important notations.
 
@@ -23,7 +23,7 @@ Let's first introduce some important notations.
 
 The agents are only allowed to travel from vertex $u$ to another vertex $v$ if such edge $e = (u,v) \in \mathcal{E}$ exists in the graph.
 
-Commonly, the two most common objectives for MAPH problems are as follows. Let $t^{(g)}_i$ be the time where agent $i$ arrives at its destination vertex.
+Commonly, the two most common objectives for MAPF problems are as follows. Let $t^{(g)}_i$ be the time when agent $i$ arrives at its destination vertex.
 
 1. `Makespan`: The system time required for the whole fleet of agents to achieve their destinations.
 
@@ -40,9 +40,9 @@ Commonly, the two most common objectives for MAPH problems are as follows. Let $
 In this article, we focus the philosophy of `sum of costs`
 
 
-## Discrete-time Vertex-binding MAPH
+## Discrete-time Vertex-binding MAPF
 
-We formulate the MAPH problem in discrete time. That is, the actions are done within a fixed unit time, and only 1 action allowed at each unit time.
+We formulate the MAPF problem in discrete time. That is, the actions are done within a fixed unit time, and only 1 action allowed at each unit time.
 
 The vertex-binding setting means we combine the visit of vertex with the edge traversal. That is, if an agent travels via some incoming edge of vertex $v$, the agent must pay the cost of visiting vertex $v$. Visiting a vertex and going through an edge happen at the same time frame.
 
@@ -131,9 +131,9 @@ At each time frame within agent's lifespan, an agent can only be present at one 
   Note that nonzero vertex safe window already prevents swapping.
 
 
-## Discrete-time Non-binding MAPH
+## Discrete-time Non-binding MAPF
 
-We formulate the MAPH problem in discrete time. That is, the actions are done within a fixed unit time, and only 1 action allowed at each unit time.
+We formulate the MAPF problem in discrete time. That is, the actions are done within a fixed unit time, and only 1 action allowed at each unit time.
 
 A non-binding setting means an agent can use a vertex as a stepping stone without paying the cost on it. One can imagine the case when an express train passes through a station without stopping. Equivalently, the agent can only choose to either go on a vertex or go on an edge at each time slot, different from the binding case where an agent does both within a time slot.
 
@@ -201,9 +201,9 @@ y_{i,v',t} \geq \sum_{e = (u, v') \in \mathcal{E}} x_{i,e,t-1}
 
 #### Conflict Constraints
 
-- **Vertex Conflict**: At any given time slot, no more than 1 agent can occupy a vertex $v$. i.e. $\forall v \in \mathcal{V}, t \in \mathcal{T}$
+- **Vertex Conflict**: At any given time slot, no more than 1 agent can occupy or overpass a vertex $v$. i.e. $\forall v \in \mathcal{V}, t \in \mathcal{T}$
   ```math
-  \sum_{i \in \mathcal{A}} y_{i,v,t} \leq 1
+  \sum_{i \in \mathcal{A}} \left( y_{i,v,t}  + \sum_{e = (u, v) \in \mathcal{E}} x_{i,e,t} \right) \leq 1
   ```
 
   A safety window $w_v^{(V)} \in \mathbb{N}$ of occupying a vertex $v$ can be considered as $\forall t \in \mathcal{T}$
@@ -226,7 +226,7 @@ y_{i,v',t} \geq \sum_{e = (u, v') \in \mathcal{E}} x_{i,e,t-1}
 - **Following Conflict**: Following conflict can be solved by applying a vertex safe window $w_v^{(V)} > 0$. Alternatively, we can write $\forall t \in \mathcal{T}, v \in \mathcal{V}$
 
   ```math
-  \sum_{i \in \mathcal{A}} \left( y_{i,v,t} + \sum_{e \in (u, v) \in \mathcal{E}} x_{i,e,t} \right) \leq 1
+  \sum_{i \in \mathcal{A}} \left( y_{i,v,t} + \sum_{e = (u, v) \in \mathcal{E}} x_{i,e,t} + \sum_{e' = (v, w) \in \mathcal{E}} x_{i,e',t} \right) \leq 1
   ```
 
 - **Swapping Conflict**: A swapping conflict between agent $i$ going through edge $e = (u,v)$ and agent $j$ going through edge $e' = (v, u)$ can be formulated as follows. $\forall t \in \mathcal{T}$
@@ -237,7 +237,7 @@ y_{i,v',t} \geq \sum_{e = (u, v') \in \mathcal{E}} x_{i,e,t-1}
 
   Note that nonzero vertex safe window already prevents swapping.
 
-## Continuous-time MAPH
+## Continuous-time MAPF
 
 Consider the time being continuous, and the agents are allowed to have different speed. We can also separate the **cost** function from the travel time, we can have different cost like budget, etc. There's no notion of vertex-binding or not since it's linked to the setting of vertex waiting time (see below notion of $\tau_{i,v}^{(V)}$).
 
@@ -314,22 +314,35 @@ y_{i,v'} = 1 \; \forall v' \in \mathcal{M}_i
 
 #### Conflict Constraints
 
-Let $\bar{t}_{i,v} \in \mathbb{R}^+$ be the time when agent $i$ arrives at vertex $v$.
+Let $\bar{t}_{i,v}^{(V)} \in \mathbb{R}^+$ be the time when agent $i$ arrives at vertex $v$ and $\bar{t}_{i,e}^{(E)} \in \mathbb{R}^+$ be the time when agent $i$ arrives at edge $e$.
 
 Since we allow an agent $i$ to stay at vertex $v$ with time $\tau_{i,v}^{(V)} \in \mathbb{R}^+$ which is separated from the edge traveling time $\tau_{i,e}^{(E)} \in \mathbb{R}^+$, the timing sequence for an agent to travel through a vertex and an edge is as follows
 - The time agent $i$ just arrives at vertex $v$ is $\bar{t}_{i,v}$
-- The time agent $i$ finishes waiting at vertex $v$ and start to move along an edge $e = (v, v')$ is $\bar{t}_{i,v} + \tau_{i,v}^{(V)}$
-- The time agent $i$ finishes traveling through edge $e = (v, v')$ is $\bar{t}_{i,v} + \tau_{i,v}^{(V)} + \tau_{i,e}^{(E)} = \bar{t}_{i,v'}$
+- The time agent $i$ finishes waiting at vertex $v$ and start to move along an edge $e = (v, v')$ is $\bar{t}_{i,e}^{(E)} = \bar{t}_{i,v}^{(V)} + \tau_{i,v}^{(V)}$
+- The time agent $i$ finishes traveling through edge $e = (v, v')$ is $\bar{t}_{i,v'}^{(V)} = \bar{t}_{i,v}^{(E)} + \tau_{i,v}^{(E)}$
 
 The above sequence is true when the agent actually travels through the path, thus the true constraints in our problem is as follows:
 
+Since each edge is unique for every agent given a source vertex, we can simply write
 ```math
-\bar{t}_{i,v} \geq \bar{t}_{i,u} + y_{i,v}\tau_{i,u}^{(V)} + x_{i,e} \tau_{i, e}^{(E)} \; \forall e = (u,v) \in \mathcal{E}
+\bar{t}_{i,(u,v)}^{(E)} \geq \bar{t}_{i,v}^{(V)} + y_{i,v} \tau_{i,u}^{(V)} \; \forall (u, v) \in \mathcal{E}
 ```
 
-If the above doesn't work, I suspect it to be
+For the vertices, since multiple edges can impose constraints to a vertex, we need the following expression to avoid cyclic dependency that makes the problem become infeasible. For all $e = (u,v) \in \mathcal{E}$
+
 ```math
-\bar{t}_{i,v} \geq \bar{t}_{i,u} + \tau_{i,u}^{(V)} + \tau_{i,e}^{(E)} \; \forall e = (u,v) \in \mathcal{E}
+\begin{split}
+x_{i,e} = 1 & \Rightarrow \bar{t}_{i,v}^{(V)} \geq \bar{t}_{i,e}^{(E)} + \tau_{i, e}^{(E)} \\
+x_{i,e} = 0 & \Rightarrow \bar{t}_{i,v}^{(V)} \leq \bar{t}_{i,e}^{(E)}
+\end{split}
+```
+
+The above expression is equivalent to the formulation below with a big constant $M$
+```math
+\begin{cases}
+\bar{t}_{i,v}^{(V)} \geq \bar{t}_{i,e}^{(E)} + \tau_{i, e}^{(E)} - M (1 - x_{i,e}) \\
+\bar{t}_{i,v}^{(V)} \leq \bar{t}_{i,e}^{(E)} + M x_{i,e}
+\end{cases}
 ```
 
 With the base case
@@ -350,17 +363,17 @@ With the base case
   This formulation is equivalent to
   ```math
   \begin{cases}
-  S_i \geq E_j + G & \text{ if } \delta_{i,j} = 1 \\
-  S_j \geq E_i + G & \text{ if } \delta_{i,j} = 0
+  S_i \geq E_j + G & \text{ if } \delta_{i,j} = 0 \\
+  S_j \geq E_i + G & \text{ if } \delta_{i,j} = 1
   \end{cases}
   ```
   
-  With such formulation in mind, we have the equivalent formulation in our MAPH problem.
+  With such formulation in mind, we have the equivalent formulation in our MAPF problem. For all $i \in \mathcal{A}, v \in \mathcal{V}$
 
   ```math
   \begin{split}
-  \bar{t}_{i,v} - y_{i,v} \xi_{i,v}^- & \geq \bar{t}_{j,v} + y_{j,v} \tau_{j,v}^{(V)} + y_{j,v} \xi_{j,v}^+ - M \delta_{i,j,v} \\
-  \bar{t}_{j,v} - y_{j,v} \xi_{j,v}^- & \geq \bar{t}_{i,v} + y_{i,v} \tau_{i,v}^{(V)} + y_{i,v} \xi_{i,v}^+ - M (1 - \delta_{i,j,v})
+  \bar{t}_{i,v}^{(V)} - y_{i,v} \xi_{i,v}^- & \geq \bar{t}_{j,(v, w)}^{(E)} + y_{j,v} \xi_{j,v}^+ - M \delta_{i,j,v} \\
+  \bar{t}_{j,v}^{(V)} - y_{j,v} \xi_{j,v}^- & \geq \bar{t}_{i,(v, w)}^{(E)} + y_{i,v} \xi_{i,v}^+ - M (1 - \delta_{i,j,v})
   \end{split} 
   ```
   where 
@@ -369,15 +382,15 @@ With the base case
   - `if-else variable` $\delta_{i,j,v} \in \{0,1\}$ is the binary variable for the decision-making.
   - `if-else constant` $M$ is a large enough number for the if-else statement in integer programming;
 
-  This means agent $i$ occupies vertex $v$ from time $S_i = \bar{t}_{i,v} - y_{i,v} \xi_{i,v}^-$ until time $E_i = \bar{t}_{i,v} + y_{i,v} \tau_{i,v}^{(V)} + y_{i,v} \xi_{i,v}^+$ without any enforced gap $G=0$. During this time period, no overlapping can happen between any two agents.
+  This means agent $i$ occupies vertex $v$ from time $S_i = \bar{t}_{i,v} - y_{i,v} \xi_{i,v}^-$ until time $E_i = \bar{t}_{i,(v, w)}^{(E)} + y_{i,v} \xi_{i,v}^+$ without any enforced gap $G=0$. During this time period, no overlapping can happen between any two agents.
 
 
 - **Edge Conflict**: Similar to the vertex's formulation, we prevent any time overlapping of any pairs of agents to travel through any edge. Now the starting and ending time for agent $i$ to travel on edge $e = (u,v)$ is
 
   ```math
   \begin{split}
-  S_i & = \bar{t}_{i,u} + y_{i,u} \tau_{i,u}^{(V)} - x_{i,e} \xi_{i,e}^- \\
-  E_i & = \bar{t}_{i,v} + x_{i,e} \xi_{i,e}^+
+  S_i & = \bar{t}_{i,e}^{(E)} - x_{i,e} \xi_{i,e}^- \\
+  E_i & = \bar{t}_{i,v}^{(V)} + x_{i,e} \xi_{i,e}^+
   \end{split}
   ```
 
@@ -385,8 +398,8 @@ With the base case
 
   ```math
   \begin{split}
-  \bar{t}_{i,u} + y_{i,u} \tau_{i,u}^{(V)} - x_{i,e} \xi_{i,e}^- & \geq \bar{t}_{j,v} + x_{j,e} \xi_{j,e}^+ - M \delta_{i,j,e} \\
-  \bar{t}_{j,u} + y_{j,u} \tau_{j,u}^{(V)} - x_{j,e} \xi_{j,e}^- & \geq \bar{t}_{i,v} + x_{i,e} \xi_{i,e}^+ - M (1 - \delta_{i,j,e})
+  \bar{t}_{i,e}^{(E)} - x_{i,e} \xi_{i,e}^- & \geq \bar{t}_{j,v}^{(V)} + x_{j,e} \xi_{j,e}^+ - M \delta_{i,j,e} \\
+  \bar{t}_{j,e}^{(E)} - x_{j,e} \xi_{j,e}^- & \geq \bar{t}_{i,v}^{(V)} + x_{i,e} \xi_{i,e}^+ - M (1 - \delta_{i,j,e})
   \end{split}
   ```
 
@@ -397,24 +410,24 @@ With the base case
   For agent $i$, we have the occupancy time of edge $e$ being
   ```math
   \begin{split}
-  S_i & = \bar{t}_{i,u} + y_{i,u} \tau_{i,u}^{(V)} - x_{i,e} \xi_{i,e}^- \\
-  E_i & = \bar{t}_{i,v} + x_{i,e} \xi_{i,e}^+
+  S_i & = \bar{t}_{i,e}^{(E)} - x_{i,e} \xi_{i,e}^- \\
+  E_i & = \bar{t}_{i,v}^{(V)} + x_{i,e} \xi_{i,e}^+
   \end{split}
   ```
 
   While for agent $j$, the occupancy time of edge $e'$ is
   ```math
   \begin{split}
-  S_j & = \bar{t}_{j,v} + y_{j,v} \tau_{j,v}^{(V)} - x_{j,e'} \xi_{j,e'}^- \\
-  E_j & = \bar{t}_{j,u} + x_{j,e'} \xi_{j,e'}^+
+  S_j & = \bar{t}_{j,e'}^{(E)} - x_{j,e'} \xi_{j,e'}^- \\
+  E_j & = \bar{t}_{j,u}^{(V)} + x_{j,e'} \xi_{j,e'}^+
   \end{split}
   ```
 
   Therefore, the non-overlapping constraint becomes
   ```math
   \begin{split}
-  \bar{t}_{i,u} + y_{i,u} \tau_{i,u}^{(V)} - x_{i,e} \xi_{i,e}^- & \geq \bar{t}_{j,u} + x_{j,e'} \xi_{j,e'}^+ - M \delta^{(sw)}_{i,j,e} \\
-  \bar{t}_{j,v} + y_{j,v} \tau_{j,v}^{(V)} - x_{j,e'} \xi_{j,e'}^- & \geq \bar{t}_{i,v} + x_{i,e} \xi_{i,e}^+ - M ( 1 - \delta^{(sw)}_{i,j,e})
+  \bar{t}_{i,e}^{(E)} - x_{i,e} \xi_{i,e}^- & \geq \bar{t}_{j,u}^{(V)} + x_{j,e'} \xi_{j,e'}^+ - M \delta^{(sw)}_{i,j,e} \\
+  \bar{t}_{j,e'}^{(E)} - x_{j,e'} \xi_{j,e'}^- & \geq \bar{t}_{i,v}^{(V)} + x_{i,e} \xi_{i,e}^+ - M ( 1 - \delta^{(sw)}_{i,j,e})
   \end{split}
   ```
 

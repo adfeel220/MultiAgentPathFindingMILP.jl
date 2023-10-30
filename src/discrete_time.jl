@@ -1,6 +1,6 @@
 
 """
-    maph_discrete_time!(
+    mapf_discrete_time!(
         model,
         network, source_vertices, target_vertices, vertex_cost, edge_cost, departure_time;
         time_duration, vertex_var_name, edge_var_name, integer,vertex_binding
@@ -8,7 +8,7 @@
 
 Modify a JuMP model by adding the variable, constraints and objective to compute discrete-time MAPH problem
 """
-function maph_discrete_time!(
+function mapf_discrete_time!(
     model::Model,
     network::AbstractGraph,
     source_vertices::Vector{Int},
@@ -52,6 +52,7 @@ function maph_discrete_time!(
     model[(Symbol(vertex_var_name))] = vertex_select_vars
 
     ## Constraints
+    # Connectivity constraints
     for (agent_id, (agent_source, agent_target)) in
         enumerate(zip(source_vertices, target_vertices))
         agent_departure_time = departure_time[agent_id]
@@ -154,6 +155,42 @@ function maph_discrete_time!(
         end
     end
 
+    # Conflict Constraints
+    # vertex conflict: at any given time, no more than 1 agent can occupy a vertex
+    for v in vertices(network), t in 0:(time_duration - 1)
+        @constraint(
+            model,
+            sum(
+                vertex_select_vars[agent_id, v, t] + sum(
+                    edge_select_vars[agent_id, (prev_v, v), t] for
+                    prev_v in inneighbors(network, v)
+                ) for agent_id in 1:n_agents
+            ) <= 1
+        )
+    end
+    # edge conflict: at any given time, no more than 1 agent can occupy an edge
+    for ed in edge_tuples, t in 0:(time_duration - 1)
+        @constraint(
+            model, sum(edge_select_vars[agent_id, ed, t] for agent_id in 1:n_agents) <= 1
+        )
+    end
+
+    # Swapping conflict
+    for (u, v) in edge_tuples
+        if (v, u) ∉ edge_tuples
+            continue
+        end
+        for t in 0:(time_duration - 1)
+            @constraint(
+                model,
+                sum(
+                    edge_select_vars[agent_id, (u, v), t] +
+                    edge_select_vars[agent_id, (v, u), t] for agent_id in 1:n_agents
+                ) <= 1
+            )
+        end
+    end
+
     # Objective
     if ndims(edge_cost) == 3
         edge_objective = sum(
@@ -183,7 +220,7 @@ function maph_discrete_time!(
 end
 
 """
-    maph_discrete_time(
+    mapf_discrete_time(
         network, source_vertices, target_vertices, vertex_cost, edge_cost, departure_time;
         time_duration, integer, vertex_binding, optimizer, silent
     )
@@ -211,7 +248,7 @@ Returns the selected vertices and edges for each agent
 - `silent::Bool`: turn of printing of model status printing
 
 """
-function maph_discrete_time(
+function mapf_discrete_time(
     network::AbstractGraph,
     source_vertices::Vector{Int},
     target_vertices::Vector{Int},
@@ -231,7 +268,7 @@ function maph_discrete_time(
         set_silent(model)
     end
 
-    maph_discrete_time!(
+    mapf_discrete_time!(
         model,
         network,
         source_vertices,

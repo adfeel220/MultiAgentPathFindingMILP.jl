@@ -1,9 +1,14 @@
 
 """
-    maph_continuous_time!(
+    mapf_continuous_time!(
         model,
-        network, source_vertices, target_vertices, vertex_cost, edge_cost, departure_time;
-        vertex_var_name, edge_var_name, integer,
+        network, source_vertices, target_vertices,
+        vertex_wait_time, edge_wait_time,
+        vertex_cost, edge_cost,
+        departure_time;
+        vertex_var_name, edge_var_name,
+        vertex_arrival_time_var_name, edge_arrival_time_var_name
+        integer, big_M
     )
 
 Modify a JuMP model by adding the variable, constraints and objective to compute continuous-time MAPH problem
@@ -14,29 +19,40 @@ Modify a JuMP model by adding the variable, constraints and objective to compute
 - `network::AbstractGraph`: a directed graph representing the map
 - `source_vertices::Vector{Int}`: an array of vertices indicating each agent's source vertex (the vertex an agent starts travel from)
 - `target_vertices::Vector{Int}`: an array of vertices indicating each agent's target vertex (the vertex an agent end its travel at)
+- `vertex_wait_time::Array{<:Real}`: minimum staying time for agent at each vertex. dimension = ([agent,] vertex)
+- `edge_wait_time::Array{<:Real}`: minimum travel time for agent on each edge. dimension = ([agent,] from_vertex, to_vertex)
 - `vertex_cost::Array{<:Real}`: costs for staying at each vertex. dimension = ([agent,] vertex)
-- `edge_cost::Array{<:Real}`: costs for crossing each edge. dimension = ([agent,] vertex, vertex), we use (from_vertex, to_vertex) to indicate an edge
+- `edge_cost::Array{<:Real}`: costs for crossing each edge. dimension = ([agent,] from_vertex, to_vertex)
+- `departure_time::Vector{Float64}`: departure time for each agent at their source vertex
 
 # Keyword arguments
 
 - `vertex_var_name`: name of vertex selection variables, will be intepreted as a symbol
 - `edge_var_name`: name of edge selection variables, will be intepreted as a symbol
+- `vertex_arrival_time_var_name`: name of variable for arrival time of agent `i` at vertex `v`
+- `edge_arrival_time_var_name`: name of veriable for arrival time of agent `i` at edge `(u, v)`
 - `integer::Bool`: whether to apply integer programming, apply linear relaxation otherwise
+- `big_M::{<:Real}: the big constant for if-else statements as linear constraint, should be larger than any time measure`
 
 """
-function maph_continuous_time!(
+function mapf_continuous_time!(
     model::Model,
     network::AbstractGraph,
     source_vertices::Vector{Int},
     target_vertices::Vector{Int},
     # dim: [agent,] vertex 
-    vertex_cost::Array{T},
+    vertex_wait_time::Array{T},
     # dim: [agent,] from_vertex, to_vertex
-    edge_cost::Array{T},
-    departure_time::Vector{Float64}=zeros(Float64, length(source_vertices));
+    edge_wait_time::Array{T},
+    vertex_cost::Array{T}=vertex_wait_time,
+    edge_cost::Array{T}=edge_wait_time,
+    departure_time::Vector{T}=zeros(T, length(source_vertices));
     vertex_var_name=:vertex,
     edge_var_name=:edge,
+    vertex_arrival_time_var_name=:vertex_arrival_time,
+    edge_arrival_time_var_name=:edge_arrival_time,
     integer::Bool=true,
+    big_M::T=100.0,
 ) where {T<:Real}
     @assert length(source_vertices) == length(target_vertices) "The number of source vertices does not match the number of target vertices"
     check_overlap_on_vertex(source_vertices, "Invalid source vertices for agents")
@@ -58,6 +74,12 @@ function maph_continuous_time!(
         model, 0 <= y[a=1:n_agents, v=vertices(network)] <= 1; integer=integer
     )
     model[Symbol(vertex_var_name)] = vertex_select_vars
+
+    vertex_arrival_time = @variable(model, v_arr[a=1:n_agents, v=vertices(network)] >= 0)
+    model[Symbol(vertex_arrival_time_var_name)] = vertex_arrival_time
+
+    edge_arrival_time = @variable(model, e_arr[a=1:n_agents, ed=edge_tuples] >= 0)
+    model[Symbol(edge_arrival_time_var_name)] = edge_arrival_time
 
     ## Constraints
     for (agent_id, (agent_source, agent_target)) in
@@ -121,6 +143,137 @@ function maph_continuous_time!(
         end
     end
 
+    # Timing constraints
+    for agent_id in 1:n_agents
+        agent_source = source_vertices[agent_id]
+
+        # Base case, the starting time of each agent from source vertices
+        @constraint(
+            model, vertex_arrival_time[agent_id, agent_source] == departure_time[agent_id]
+        )
+
+        # Iterative case, all edges arrival time waits their previous arrival of source vertices
+        for v in vertices(network)
+            wait_time = if ndims(vertex_wait_time) == 2
+                vertex_wait_time[agent_id, v]
+            else
+                vertex_wait_time[v]
+            end
+
+            for next_v in outneighbors(network, v)
+                @constraint(
+                    model,
+                    edge_arrival_time[agent_id, (v, next_v)] >=
+                        vertex_arrival_time[agent_id, v] +
+                    vertex_select_vars[agent_id, v] * wait_time
+                )
+            end
+        end
+
+        # all vertex arrival time is larger than edge arrival + travel time if it travels through the edge
+        for (u, v) in edge_tuples
+            wait_time = if ndims(edge_wait_time) == 3
+                edge_wait_time[agent_id, u, v]
+            else
+                edge_wait_time[u, v]
+            end
+
+            @constraint(
+                model,
+                vertex_arrival_time[agent_id, v] >=
+                    edge_arrival_time[agent_id, (u, v)] + wait_time -
+                big_M * (1 - edge_select_vars[agent_id, (u, v)])
+            )
+            @constraint(
+                model,
+                vertex_arrival_time[agent_id, v] <=
+                    edge_arrival_time[agent_id, (u, v)] +
+                big_M * edge_select_vars[agent_id, (u, v)]
+            )
+        end
+    end
+
+    ## Conflicts
+    vertex_entry_sequence = @variable(
+        model,
+        0 <= v_seq[a1=1:n_agents, a2=1:n_agents, v=vertices(network)] <= 1;
+        integer=integer
+    )
+    edge_entry_sequence = @variable(
+        model,
+        0 <= e_seq[a1=1:n_agents, a2=1:n_agents, ed=edge_tuples] <= 1;
+        integer=integer
+    )
+    swapping_var = @variable(
+        model, 0 <= sw[a1=1:n_agents, a2=1:n_agents, ed=edge_tuples] <= 1; integer=integer
+    )
+    for agent_i in 1:n_agents, agent_j in 1:n_agents
+        # Vertex Conflict
+        for v in vertices(network)
+            if agent_i >= agent_j
+                continue
+            end
+
+            for next_v in outneighbors(network, v)
+                @constraint(
+                    model,
+                    vertex_arrival_time[agent_i, v] >=
+                        edge_arrival_time[agent_j, (v, next_v)] -
+                    big_M * vertex_entry_sequence[agent_i, agent_j, v]
+                )
+                @constraint(
+                    model,
+                    vertex_arrival_time[agent_j, v] >=
+                        edge_arrival_time[agent_i, (v, next_v)] -
+                    big_M * (1 - vertex_entry_sequence[agent_i, agent_j, v])
+                )
+            end
+        end
+
+        # Edge Conflict
+        for (u, v) in edge_tuples
+            if agent_i >= agent_j
+                continue
+            end
+
+            @constraint(
+                model,
+                edge_arrival_time[agent_i, (u, v)] >=
+                    vertex_arrival_time[agent_j, v] -
+                big_M * edge_entry_sequence[agent_i, agent_j, (u, v)]
+            )
+            @constraint(
+                model,
+                edge_arrival_time[agent_j, (u, v)] >=
+                    vertex_arrival_time[agent_i, v] -
+                big_M * (1 - edge_entry_sequence[agent_i, agent_j, (u, v)])
+            )
+        end
+
+        # Swapping Conflict
+        for (u, v) in edge_tuples
+            if (v, u) ∉ edge_tuples
+                continue
+            end
+            if agent_i >= agent_j
+                continue
+            end
+
+            @constraint(
+                model,
+                edge_arrival_time[agent_i, (u, v)] >=
+                    vertex_arrival_time[agent_j, u] -
+                big_M * swapping_var[agent_i, agent_j, (u, v)]
+            )
+            @constraint(
+                model,
+                edge_arrival_time[agent_j, (v, u)] >=
+                    vertex_arrival_time[agent_i, v] -
+                big_M * (1 - swapping_var[agent_i, agent_j, (u, v)])
+            )
+        end
+    end
+
     # Objective
     if ndims(edge_cost) == 3
         edge_objective = sum(
@@ -146,15 +299,22 @@ function maph_continuous_time!(
         )
     end
 
-    @objective(model, Min, edge_objective + vertex_objective)
+    vertex_time_objective = sum(vertex_arrival_time)
+    edge_time_objective = sum(edge_arrival_time)
+
+    @objective(
+        model,
+        Min,
+        edge_objective + vertex_objective + vertex_time_objective + edge_time_objective
+    )
 
     return model
 end
 
 """
-    maph_continuous_time(
+    mapf_continuous_time(
         network, source_vertices, target_vertices, vertex_cost, edge_cost, departure_time;
-        integer, optimizer, silent
+        integer, optimizer, silent, big_M
     )
 
 Compute the MAPH problem in continuous time from a set of source vertices to target vertices.
@@ -166,8 +326,10 @@ Returns the selected vertices and edges for each agent
 - `network::AbstractGraph`: a directed graph representing the map
 - `source_vertices::Vector{Int}`: an array of vertices indicating each agent's source vertex (the vertex an agent starts travel from)
 - `target_vertices::Vector{Int}`: an array of vertices indicating each agent's target vertex (the vertex an agent end its travel at)
-- `vertex_cost::Array{<:Real}`: costs for staying at each vertex. dimension = ([agent,] vertex)
-- `edge_cost::Array{<:Real}`: costs for crossing each edge. dimension = ([agent,] vertex, vertex), we use (from_vertex, to_vertex) to indicate an edge
+- `vertex_wait_time::Array{<:Real}`: waiting time for each agent to stay at a specific vertex. dimension = ([agent,] vertex)
+- `edge_wait_time::Array{<:Real}`: waiting time for each agent to travel on a specific edge. dimension = ([agent,] vertex, vertex), we use (from_vertex, to_vertex) to indicate an edge
+- `vertex_cost::Array{<:Real}`: costs for staying at each vertex. dimension = ([agent,] vertex). by default `= vertex_wait_time`
+- `edge_cost::Array{<:Real}`: costs for crossing each edge. dimension = ([agent,] vertex, vertex), we use (from_vertex, to_vertex) to indicate an edge. by default `= edge_wait_time`
 - `departure_time::Vector{Float64}`: departure time of each agent (default is `zeros(Float64, length(source_vertices))`)
 
 # Keyword arguments
@@ -175,57 +337,81 @@ Returns the selected vertices and edges for each agent
 - `integer::Bool`: whether the path should be integer-valued or real-valued (default is `true`)
 - `optimizer`: JuMP-compatible solver (default is `HiGHS.Optimizer`)
 - `silent::Bool`: turn of printing of model status printing
+- `big_M::{<:Real}: the big constant for if-else statements as linear constraint, should be larger than any time measure`
 
 """
-function maph_continuous_time(
+function mapf_continuous_time(
     network::AbstractGraph,
     source_vertices::Vector{Int},
     target_vertices::Vector{Int},
     # dim: [agent,] vertex 
-    vertex_cost::Array{T},
+    vertex_wait_time::Array{T},
     # dim: [agent,] from_vertex, to_vertex
-    edge_cost::Array{T},
+    edge_wait_time::Array{T},
+    vertex_cost::Array{T}=vertex_wait_time,
+    edge_cost::Array{T}=edge_wait_time,
     departure_time::Vector{Float64}=zeros(Float64, length(source_vertices));
     integer::Bool=true,
     optimizer=HiGHS.Optimizer,
     silent::Bool=true,
+    big_M::T=100.0,
 ) where {T<:Real}
     model = Model(optimizer)
     if silent
         set_silent(model)
     end
 
-    maph_continuous_time!(
+    mapf_continuous_time!(
         model,
         network,
         source_vertices,
         target_vertices,
+        vertex_wait_time,
+        edge_wait_time,
         vertex_cost,
         edge_cost,
         departure_time;
-        vertex_var_name=:vertex,
-        edge_var_name=:edge,
+        vertex_var_name=:vertex_select,
+        edge_var_name=:edge_select,
+        vertex_arrival_time_var_name=:vertex_time,
+        edge_arrival_time_var_name=:edge_time,
         integer=integer,
+        big_M=big_M,
     )
     optimize!(model)
     @assert termination_status(model) == OPTIMAL
 
-    edge_selection_vars = value.(model[:edge])
-    vertex_selection_vars = value.(model[:vertex])
+    edge_selection_vars = value.(model[:edge_select])
+    vertex_selection_vars = value.(model[:vertex_select])
+
+    edge_arrival_time = value.(model[:edge_time])
+    vertex_arrival_time = value.(model[:vertex_time])
 
     # parse vertices
     agents, selection = axes(vertex_selection_vars)
     valid_vertices = [
-        [v for v in selection if vertex_selection_vars[agent_id, v] > 0.5] for
-        agent_id in agents
+        [
+            (vertex_arrival_time[agent_id, v], v) for
+            v in selection if vertex_selection_vars[agent_id, v] > 0.5
+        ] for agent_id in agents
     ]
+    # sort by time
+    for agent_vertices in valid_vertices
+        sort!(agent_vertices; by=(x -> first(x)))
+    end
 
     # parse edges
     agents, selection = axes(edge_selection_vars)
     valid_edges = [
-        [ed for ed in selection if edge_selection_vars[agent_id, ed] > 0.5] for
-        agent_id in agents
+        [
+            (edge_arrival_time[agent_id, ed], ed) for
+            ed in selection if edge_selection_vars[agent_id, ed] > 0.5
+        ] for agent_id in agents
     ]
+    # sort by time
+    for agent_edges in valid_edges
+        sort!(agent_edges; by=(x -> first(x)))
+    end
 
     return valid_vertices, valid_edges
 end
