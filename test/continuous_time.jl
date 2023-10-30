@@ -35,15 +35,23 @@ valid_vertices, valid_edges = maph_continuous_time(
 )
 
 vertex_answer = [[1, 2, 6, 7], [4, 2, 6, 8], [8, 6, 2, 3]]
+vertex_timing = [[0.0, 6.0, 9.0, 11.0], [0.0, 2.0, 7.0, 9.0], [0.0, 2.0, 5.0, 7.0]]
 edge_answer = [
     [ed for ed in zip(agent_path[1:(end - 1)], agent_path[2:end])] for
     agent_path in vertex_answer
 ]
+edge_timing = [[2.0, 7.0, 10.0], [1.0, 5.0, 8.0], [1.0, 3.0, 6.0]]
 
-for (vertices_visited, answer) in zip(valid_vertices, vertex_answer)
-    @test issetequal(Set(vertices_visited), Set(answer))
+for (vertices_visited, answer, timing) in zip(valid_vertices, vertex_answer, vertex_timing)
+    for ((test_time, test_v), ans_time, ans_v) in zip(vertices_visited, timing, answer)
+        @test test_time ≈ ans_time
+        @test test_v == ans_v
+    end
 end
 
-for (edges_visited, answer) in zip(valid_edges, edge_answer)
-    @test issetequal(Set(edges_visited), Set(answer))
+for (edges_visited, answer, timing) in zip(valid_edges, edge_answer, edge_timing)
+    for ((test_time, test_ed), ans_time, ans_ed) in zip(edges_visited, timing, answer)
+        @test test_time ≈ ans_time
+        @test test_ed == ans_ed
+    end
 end

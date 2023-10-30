@@ -8,7 +8,7 @@
         departure_time;
         vertex_var_name, edge_var_name,
         vertex_arrival_time_var_name, edge_arrival_time_var_name
-        integer,
+        integer, big_M
     )
 
 Modify a JuMP model by adding the variable, constraints and objective to compute continuous-time MAPH problem
@@ -46,7 +46,7 @@ function maph_continuous_time!(
     edge_wait_time::Array{T},
     vertex_cost::Array{T}=vertex_wait_time,
     edge_cost::Array{T}=edge_wait_time,
-    departure_time::Vector{Float64}=zeros(Float64, length(source_vertices));
+    departure_time::Vector{T}=zeros(T, length(source_vertices));
     vertex_var_name=:vertex,
     edge_var_name=:edge,
     vertex_arrival_time_var_name=:vertex_arrival_time,
@@ -193,6 +193,87 @@ function maph_continuous_time!(
         end
     end
 
+    ## Conflicts
+    vertex_entry_sequence = @variable(
+        model,
+        0 <= v_seq[a1=1:n_agents, a2=1:n_agents, v=vertices(network)] <= 1;
+        integer=integer
+    )
+    edge_entry_sequence = @variable(
+        model,
+        0 <= e_seq[a1=1:n_agents, a2=1:n_agents, ed=edge_tuples] <= 1;
+        integer=integer
+    )
+    swapping_var = @variable(
+        model, 0 <= sw[a1=1:n_agents, a2=1:n_agents, ed=edge_tuples] <= 1; integer=integer
+    )
+    for agent_i in 1:n_agents, agent_j in 1:n_agents
+        # Vertex Conflict
+        for v in vertices(network)
+            if agent_i >= agent_j
+                continue
+            end
+
+            for next_v in outneighbors(network, v)
+                @constraint(
+                    model,
+                    vertex_arrival_time[agent_i, v] >=
+                        edge_arrival_time[agent_j, (v, next_v)] -
+                    big_M * vertex_entry_sequence[agent_i, agent_j, v]
+                )
+                @constraint(
+                    model,
+                    vertex_arrival_time[agent_j, v] >=
+                        edge_arrival_time[agent_i, (v, next_v)] -
+                    big_M * (1 - vertex_entry_sequence[agent_i, agent_j, v])
+                )
+            end
+        end
+
+        # Edge Conflict
+        for (u, v) in edge_tuples
+            if agent_i >= agent_j
+                continue
+            end
+
+            @constraint(
+                model,
+                edge_arrival_time[agent_i, (u, v)] >=
+                    vertex_arrival_time[agent_j, v] -
+                big_M * edge_entry_sequence[agent_i, agent_j, (u, v)]
+            )
+            @constraint(
+                model,
+                edge_arrival_time[agent_j, (u, v)] >=
+                    vertex_arrival_time[agent_i, v] -
+                big_M * (1 - edge_entry_sequence[agent_i, agent_j, (u, v)])
+            )
+        end
+
+        # Swapping Conflict
+        for (u, v) in edge_tuples
+            if (v, u) ∉ edge_tuples
+                continue
+            end
+            if agent_i >= agent_j
+                continue
+            end
+
+            @constraint(
+                model,
+                edge_arrival_time[agent_i, (u, v)] >=
+                    vertex_arrival_time[agent_j, u] -
+                big_M * swapping_var[agent_i, agent_j, (u, v)]
+            )
+            @constraint(
+                model,
+                edge_arrival_time[agent_j, (v, u)] >=
+                    vertex_arrival_time[agent_i, v] -
+                big_M * (1 - swapping_var[agent_i, agent_j, (u, v)])
+            )
+        end
+    end
+
     # Objective
     if ndims(edge_cost) == 3
         edge_objective = sum(
@@ -233,7 +314,7 @@ end
 """
     maph_continuous_time(
         network, source_vertices, target_vertices, vertex_cost, edge_cost, departure_time;
-        integer, optimizer, silent
+        integer, optimizer, silent, big_M
     )
 
 Compute the MAPH problem in continuous time from a set of source vertices to target vertices.
