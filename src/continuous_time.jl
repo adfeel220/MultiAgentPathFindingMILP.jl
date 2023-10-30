@@ -1,6 +1,6 @@
 
 """
-    maph_continuous_time!(
+    mapf_continuous_time!(
         model,
         network, source_vertices, target_vertices,
         vertex_wait_time, edge_wait_time,
@@ -35,7 +35,7 @@ Modify a JuMP model by adding the variable, constraints and objective to compute
 - `big_M::{<:Real}: the big constant for if-else statements as linear constraint, should be larger than any time measure`
 
 """
-function maph_continuous_time!(
+function mapf_continuous_time!(
     model::Model,
     network::AbstractGraph,
     source_vertices::Vector{Int},
@@ -312,7 +312,7 @@ function maph_continuous_time!(
 end
 
 """
-    maph_continuous_time(
+    mapf_continuous_time(
         network, source_vertices, target_vertices, vertex_cost, edge_cost, departure_time;
         integer, optimizer, silent, big_M
     )
@@ -340,7 +340,7 @@ Returns the selected vertices and edges for each agent
 - `big_M::{<:Real}: the big constant for if-else statements as linear constraint, should be larger than any time measure`
 
 """
-function maph_continuous_time(
+function mapf_continuous_time(
     network::AbstractGraph,
     source_vertices::Vector{Int},
     target_vertices::Vector{Int},
@@ -361,7 +361,7 @@ function maph_continuous_time(
         set_silent(model)
     end
 
-    maph_continuous_time!(
+    mapf_continuous_time!(
         model,
         network,
         source_vertices,

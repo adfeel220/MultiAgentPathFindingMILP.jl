@@ -12,8 +12,15 @@ Pages=["algorithms.md"]
 ## Continuous-time
 
 ```@docs
-maph_continuous_time
-MultiAgentPathFindingMILP.maph_continuous_time!
+mapf_continuous_time
+MultiAgentPathFindingMILP.mapf_continuous_time!
+```
+
+## Discrete-time
+
+```@docs
+mapf_discrete_time
+MultiAgentPathFindingMILP.mapf_discrete_time!
 ```
 
 ## Conflict Checking

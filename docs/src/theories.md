@@ -389,8 +389,8 @@ With the base case
 
   ```math
   \begin{split}
-  S_i & = \bar{t}_{i,u} + y_{i,u} \tau_{i,u}^{(V)} - x_{i,e} \xi_{i,e}^- \\
-  E_i & = \bar{t}_{i,v} + x_{i,e} \xi_{i,e}^+
+  S_i & = \bar{t}_{i,e}^{(E)} - x_{i,e} \xi_{i,e}^- \\
+  E_i & = \bar{t}_{i,v}^{(V)} + x_{i,e} \xi_{i,e}^+
   \end{split}
   ```
 
@@ -398,8 +398,8 @@ With the base case
 
   ```math
   \begin{split}
-  \bar{t}_{i,u} + y_{i,u} \tau_{i,u}^{(V)} - x_{i,e} \xi_{i,e}^- & \geq \bar{t}_{j,v} + x_{j,e} \xi_{j,e}^+ - M \delta_{i,j,e} \\
-  \bar{t}_{j,u} + y_{j,u} \tau_{j,u}^{(V)} - x_{j,e} \xi_{j,e}^- & \geq \bar{t}_{i,v} + x_{i,e} \xi_{i,e}^+ - M (1 - \delta_{i,j,e})
+  \bar{t}_{i,e}^{(E)} - x_{i,e} \xi_{i,e}^- & \geq \bar{t}_{j,v}^{(V)} + x_{j,e} \xi_{j,e}^+ - M \delta_{i,j,e} \\
+  \bar{t}_{j,e}^{(E)} - x_{j,e} \xi_{j,e}^- & \geq \bar{t}_{i,v}^{(V)} + x_{i,e} \xi_{i,e}^+ - M (1 - \delta_{i,j,e})
   \end{split}
   ```
 
@@ -410,24 +410,24 @@ With the base case
   For agent $i$, we have the occupancy time of edge $e$ being
   ```math
   \begin{split}
-  S_i & = \bar{t}_{i,u} + y_{i,u} \tau_{i,u}^{(V)} - x_{i,e} \xi_{i,e}^- \\
-  E_i & = \bar{t}_{i,v} + x_{i,e} \xi_{i,e}^+
+  S_i & = \bar{t}_{i,e}^{(E)} - x_{i,e} \xi_{i,e}^- \\
+  E_i & = \bar{t}_{i,v}^{(V)} + x_{i,e} \xi_{i,e}^+
   \end{split}
   ```
 
   While for agent $j$, the occupancy time of edge $e'$ is
   ```math
   \begin{split}
-  S_j & = \bar{t}_{j,v} + y_{j,v} \tau_{j,v}^{(V)} - x_{j,e'} \xi_{j,e'}^- \\
-  E_j & = \bar{t}_{j,u} + x_{j,e'} \xi_{j,e'}^+
+  S_j & = \bar{t}_{j,e'}^{(E)} - x_{j,e'} \xi_{j,e'}^- \\
+  E_j & = \bar{t}_{j,u}^{(V)} + x_{j,e'} \xi_{j,e'}^+
   \end{split}
   ```
 
   Therefore, the non-overlapping constraint becomes
   ```math
   \begin{split}
-  \bar{t}_{i,u} + y_{i,u} \tau_{i,u}^{(V)} - x_{i,e} \xi_{i,e}^- & \geq \bar{t}_{j,u} + x_{j,e'} \xi_{j,e'}^+ - M \delta^{(sw)}_{i,j,e} \\
-  \bar{t}_{j,v} + y_{j,v} \tau_{j,v}^{(V)} - x_{j,e'} \xi_{j,e'}^- & \geq \bar{t}_{i,v} + x_{i,e} \xi_{i,e}^+ - M ( 1 - \delta^{(sw)}_{i,j,e})
+  \bar{t}_{i,e}^{(E)} - x_{i,e} \xi_{i,e}^- & \geq \bar{t}_{j,u}^{(V)} + x_{j,e'} \xi_{j,e'}^+ - M \delta^{(sw)}_{i,j,e} \\
+  \bar{t}_{j,e'}^{(E)} - x_{j,e'} \xi_{j,e'}^- & \geq \bar{t}_{i,v}^{(V)} + x_{i,e} \xi_{i,e}^+ - M ( 1 - \delta^{(sw)}_{i,j,e})
   \end{split}
   ```
 

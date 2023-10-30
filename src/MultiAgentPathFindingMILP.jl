@@ -13,7 +13,7 @@ using JuMP: set_silent, optimize!, termination_status, value
 using HiGHS: HiGHS
 using MathOptInterface: OPTIMAL
 
-export maph_continuous_time, maph_discrete_time
+export mapf_continuous_time, mapf_discrete_time
 
 include("conflict.jl")
 include("continuous_time.jl")

@@ -1,6 +1,6 @@
 
 """
-    maph_discrete_time!(
+    mapf_discrete_time!(
         model,
         network, source_vertices, target_vertices, vertex_cost, edge_cost, departure_time;
         time_duration, vertex_var_name, edge_var_name, integer,vertex_binding
@@ -8,7 +8,7 @@
 
 Modify a JuMP model by adding the variable, constraints and objective to compute discrete-time MAPH problem
 """
-function maph_discrete_time!(
+function mapf_discrete_time!(
     model::Model,
     network::AbstractGraph,
     source_vertices::Vector{Int},
@@ -220,7 +220,7 @@ function maph_discrete_time!(
 end
 
 """
-    maph_discrete_time(
+    mapf_discrete_time(
         network, source_vertices, target_vertices, vertex_cost, edge_cost, departure_time;
         time_duration, integer, vertex_binding, optimizer, silent
     )
@@ -248,7 +248,7 @@ Returns the selected vertices and edges for each agent
 - `silent::Bool`: turn of printing of model status printing
 
 """
-function maph_discrete_time(
+function mapf_discrete_time(
     network::AbstractGraph,
     source_vertices::Vector{Int},
     target_vertices::Vector{Int},
@@ -268,7 +268,7 @@ function maph_discrete_time(
         set_silent(model)
     end
 
-    maph_discrete_time!(
+    mapf_discrete_time!(
         model,
         network,
         source_vertices,
