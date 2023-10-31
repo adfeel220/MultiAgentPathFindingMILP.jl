@@ -22,7 +22,7 @@ function mapf_discrete_time!(
     vertex_var_name=:vertex,
     edge_var_name=:edge,
     integer::Bool=true,
-    vertex_binding::Bool=true,
+    vertex_binding::Bool=false,
 ) where {T<:Real}
     @assert length(source_vertices) == length(target_vertices) == length(departure_time) "The number of agents must agree between source vertices, target vertices, and departure time"
     check_overlap_on_vertex(source_vertices, "Invalid source vertices for agents")
@@ -31,7 +31,13 @@ function mapf_discrete_time!(
     @assert 2 <= ndims(edge_cost) <= 3 "Edge cost can only be 3 dimensional (agent, vertex, vertex) or 2 (vertex, vertex), but get $(ndims(edge_cost))-dimensions"
     @assert all(departure_time .>= zero(eltype(departure_time))) "Departure time must be non-negative integer"
 
-    edge_tuples = [(src(ed), dst(ed)) for ed in edges(network)]
+    if is_directed(network)
+        edge_tuples = [(src(ed), dst(ed)) for ed in edges(network)]
+    else
+        edge_tuples = reduce(
+            vcat, [[(src(ed), dst(ed)), (dst(ed), src(ed))] for ed in edges(network)]
+        )
+    end
     n_agents = length(source_vertices)
 
     all_agents = Base.OneTo(n_agents)
@@ -259,7 +265,7 @@ function mapf_discrete_time(
     departure_time::Vector{Int}=zeros(Int, length(source_vertices));
     time_duration::Int=ne(network),
     integer::Bool=true,
-    vertex_binding::Bool=true,
+    vertex_binding::Bool=false,
     optimizer=HiGHS.Optimizer,
     silent::Bool=true,
 ) where {T<:Real}
