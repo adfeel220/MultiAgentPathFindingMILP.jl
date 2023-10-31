@@ -1,5 +1,5 @@
 DEFAULT_VERTEX_CONFLICT_SIGNAL = (v=-1, a1=-1, a2=-1)
-DEFAULT_EDGE_CONFLICT_SIGNAL = (e=(-1,-1), a1=-1, a2=-1, swap=false)
+DEFAULT_EDGE_CONFLICT_SIGNAL = (e=(-1, -1), a1=-1, a2=-1, swap=false)
 
 """
     check_overlap_on_vertex(
@@ -85,20 +85,24 @@ function detect_vertex_conflict(
 
     for (agent_id, itinerary) in enumerate(vertices_timing)
         for (step_id, (timestamp, vertex)) in enumerate(itinerary)
+            if step_id == length(itinerary)
+                continue
+            end
+
+            finish_time, (from_v, to_v) = edges_timing[agent_id][step_id]
+            if timestamp ≈ finish_time
+                continue
+            end
+
             if haskey(vertex_occupancy, vertex)
                 push!(vertex_occupancy[vertex], (true, agent_id, timestamp))
             else
                 vertex_occupancy[vertex] = [(true, agent_id, timestamp)]
             end
 
-            if step_id == length(itinerary)
-                continue
-            end
-
-            finish_time, (from_v, to_v) = edges_timing[agent_id][step_id]
             @assert from_v == vertex "path not connected for agent $agent_id on vertex $vertex"
 
-            push!(vertex_occupancy[from_v], (false, agent_id, finish_time-epsilon))
+            push!(vertex_occupancy[from_v], (false, agent_id, finish_time - epsilon))
         end
     end
 
@@ -148,10 +152,16 @@ function detect_edge_conflict(
 )::NamedTuple where {T<:Real}
 
     # At each edge, the occupancy of agent as (is_start, agent_id, timestamp, is_inverted)
-    edge_occupancy = Dict{Tuple{Int,Int},Vector{Tuple{Bool,Int,Float64, Bool}}}()
+    edge_occupancy = Dict{Tuple{Int,Int},Vector{Tuple{Bool,Int,Float64,Bool}}}()
 
     for (agent_id, itinerary) in enumerate(edges_timing)
         for (step_id, (timestamp, edge)) in enumerate(itinerary)
+
+            finish_time, (from_v, to_v) = edges_timing[agent_id][step_id]
+            if timestamp ≈ finish_time
+                continue
+            end
+
             inverted = false
             if detect_swap
                 # keep the ascending order of edge representation to detect swapping effect
@@ -160,16 +170,14 @@ function detect_edge_conflict(
                     inverted = true
                 end
             end
-            
+
             if haskey(edge_occupancy, edge)
                 push!(edge_occupancy[edge], (true, agent_id, timestamp, inverted))
             else
                 edge_occupancy[edge] = [(true, agent_id, timestamp, inverted)]
             end
 
-            finish_time, vertex = vertices_timing[agent_id][step_id+1]
-
-            push!(edge_occupancy[edge], (false, agent_id, finish_time-epsilon, inverted))
+            push!(edge_occupancy[edge], (false, agent_id, finish_time - epsilon, inverted))
         end
     end
 
@@ -183,7 +191,7 @@ function detect_edge_conflict(
 
             # agent2 enters edge while agent1 has not left yet
             if is_start1 == is_start2
-                return (e=edge, a1=agent1, a2=agent2, swap=is_inverted1!=is_inverted2)
+                return (e=edge, a1=agent1, a2=agent2, swap=is_inverted1 != is_inverted2)
             end
         end
     end
