@@ -91,14 +91,14 @@ function add_continuous_timing_constraints!(
     network::AbstractGraph,
     source_vertices::Vector{Int},
     edge_tuples::Vector{Tuple{Int,Int}},
-    vertex_wait_time::Array{T},
-    edge_wait_time::Array{T},
+    vertex_wait_time::AbstractArray,
+    edge_wait_time::AbstractArray,
     departure_time::Vector{T},
     vertex_select_vars,
     edge_select_vars,
     vertex_arrival_time,
     edge_arrival_time;
-    big_M::T=100.0,
+    big_M::Real=100.0,
 ) where {T<:Real}
     n_agents = length(source_vertices)
 
@@ -175,7 +175,8 @@ function add_continuous_conflict_constraints!(
     edge_post_margin::Array{T}=zeros((nv(network), nv(network)));
     integer::Bool=true,
     merge_margin::Bool=false,
-    big_M::T=100.0,
+    big_M::Real=100.0,
+    swap_constraint::Bool=true,
 ) where {T<:Real}
     n_agents = length(source_vertices)
     both_way_edge_tuples = [
@@ -236,28 +237,29 @@ function add_continuous_conflict_constraints!(
             )
         end
 
-        # Swapping Conflict
-        for (u, v) in both_way_edge_tuples
-            if agent_i >= agent_j
-                continue
-            end
+        if swap_constraint
+            # Swapping Conflict
+            for (u, v) in both_way_edge_tuples
+                if agent_i >= agent_j
+                    continue
+                end
 
-            @constraint(
-                model,
-                edge_arrival_time[agent_i, (u, v)] >=
-                    vertex_arrival_time[agent_j, u] -
-                big_M * swapping_var[agent_i, agent_j, (u, v)]
-            )
-            @constraint(
-                model,
-                edge_arrival_time[agent_j, (v, u)] >=
-                    vertex_arrival_time[agent_i, v] -
-                big_M * (1 - swapping_var[agent_i, agent_j, (u, v)])
-            )
+                @constraint(
+                    model,
+                    edge_arrival_time[agent_i, (u, v)] >=
+                        vertex_arrival_time[agent_j, u] -
+                    big_M * swapping_var[agent_i, agent_j, (u, v)]
+                )
+                @constraint(
+                    model,
+                    edge_arrival_time[agent_j, (v, u)] >=
+                        vertex_arrival_time[agent_i, v] -
+                    big_M * (1 - swapping_var[agent_i, agent_j, (u, v)])
+                )
+            end
         end
     end
 end
-
 
 """
     mapf_continuous_time!(
@@ -301,18 +303,19 @@ function mapf_continuous_time!(
     source_vertices::Vector{Int},
     target_vertices::Vector{Int},
     # dim: [agent,] vertex
-    vertex_wait_time::Array{T},
+    vertex_wait_time::AbstractArray,
     # dim: [agent,] from_vertex, to_vertex
-    edge_wait_time::Array{T},
-    vertex_cost::Array{C}=vertex_wait_time,
-    edge_cost::Array{C}=edge_wait_time,
+    edge_wait_time::AbstractArray,
+    vertex_cost::AbstractArray=vertex_wait_time,
+    edge_cost::AbstractArray=edge_wait_time,
     departure_time::Vector{T}=zeros(length(source_vertices));
     vertex_var_name=:vertex,
     edge_var_name=:edge,
     vertex_arrival_time_var_name=:vertex_arrival_time,
     edge_arrival_time_var_name=:edge_arrival_time,
     integer::Bool=true,
-    big_M::T=100.0,
+    big_M::Real=100.0,
+    swap_constraint::Bool=true,
 ) where {T<:Real,C<:Real}
     @assert length(source_vertices) == length(target_vertices) "The number of source vertices does not match the number of target vertices"
     check_overlap_on_vertex(source_vertices, "Invalid source vertices for agents")
@@ -384,6 +387,7 @@ function mapf_continuous_time!(
         edge_arrival_time;
         integer=integer,
         big_M=big_M,
+        swap_constraint=swap_constraint,
     )
 
     # Objective
@@ -457,17 +461,18 @@ function mapf_continuous_time(
     source_vertices::Vector{Int},
     target_vertices::Vector{Int},
     # dim: [agent,] vertex 
-    vertex_wait_time::Array{T},
+    vertex_wait_time::AbstractArray,
     # dim: [agent,] from_vertex, to_vertex
-    edge_wait_time::Array{T},
-    vertex_cost::Array{C}=vertex_wait_time,
-    edge_cost::Array{C}=edge_wait_time,
+    edge_wait_time::AbstractArray,
+    vertex_cost::AbstractArray=vertex_wait_time,
+    edge_cost::AbstractArray=edge_wait_time,
     departure_time::Vector{T}=zeros(length(source_vertices));
     integer::Bool=true,
     optimizer=HiGHS.Optimizer,
     silent::Bool=true,
-    big_M::T=100.0,
-) where {T<:Real,C<:Real}
+    big_M::Real=100.0,
+    swap_constraint::Bool=true,
+) where {T<:Real}
     model = Model(optimizer)
     if silent
         set_silent(model)
@@ -489,6 +494,7 @@ function mapf_continuous_time(
         edge_arrival_time_var_name=:edge_time,
         integer=integer,
         big_M=big_M,
+        swap_constraint=swap_constraint,
     )
 
     optimize!(model)
