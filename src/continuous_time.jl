@@ -123,7 +123,7 @@ function add_continuous_timing_constraints!(
                     model,
                     edge_arrival_time[agent_id, (v, next_v)] >=
                         vertex_arrival_time[agent_id, v] +
-                    vertex_select_vars[agent_id, v] * wait_time
+                    vertex_select_vars[agent_id, v] * (wait_time + big_M) - big_M
                 )
             end
         end
@@ -139,14 +139,8 @@ function add_continuous_timing_constraints!(
             @constraint(
                 model,
                 vertex_arrival_time[agent_id, v] >=
-                    edge_arrival_time[agent_id, (u, v)] + wait_time -
-                big_M * (1 - edge_select_vars[agent_id, (u, v)])
-            )
-            @constraint(
-                model,
-                vertex_arrival_time[agent_id, v] <=
                     edge_arrival_time[agent_id, (u, v)] +
-                big_M * edge_select_vars[agent_id, (u, v)]
+                edge_select_vars[agent_id, (u, v)] * (wait_time + big_M) - big_M
             )
         end
     end
@@ -316,7 +310,7 @@ function mapf_continuous_time!(
     integer::Bool=true,
     big_M::Real=100.0,
     swap_constraint::Bool=true,
-) where {T<:Real,C<:Real}
+) where {T<:Real}
     @assert length(source_vertices) == length(target_vertices) "The number of source vertices does not match the number of target vertices"
     check_overlap_on_vertex(source_vertices, "Invalid source vertices for agents")
     check_overlap_on_vertex(target_vertices, "Invalid target vertices for agents")

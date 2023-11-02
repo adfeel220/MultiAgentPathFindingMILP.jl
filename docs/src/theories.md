@@ -333,21 +333,31 @@ For the vertices, since multiple edges can impose constraints to a vertex, we ne
 ```math
 \begin{split}
 x_{i,e} = 1 & \Rightarrow \bar{t}_{i,v}^{(V)} \geq \bar{t}_{i,e}^{(E)} + \tau_{i, e}^{(E)} \\
-x_{i,e} = 0 & \Rightarrow \bar{t}_{i,v}^{(V)} \leq \bar{t}_{i,e}^{(E)}
+x_{i,e} = 0 & \Rightarrow \text{(no specific constraint)}
 \end{split}
 ```
 
-The above expression is equivalent to the formulation below with a big constant $M$
+Note that applying $\bar{t}_{i,v}^{(V)} \geq \bar{t}_{i,e}^{(E)} + x_{i,e} \tau_{i, e}^{(E)}$ does not solve the problem, because it implies $\bar{t}_{i,v}^{(V)} \geq \bar{t}_{i,e}^{(E)}$ when $x_{i,e} = 0$, which can bring cyclic dependency and make the problem infeasible. We can not write $\bar{t}_{i,v}^{(V)} \geq x_{i,e} \left( \bar{t}_{i,e}^{(E)} + \tau_{i, e}^{(E)} \right)$ either since this constraint is nonlinear.
+
+The above expression is equivalent to the formulation below with the schedule time horizon $H$
 ```math
-\begin{cases}
-\bar{t}_{i,v}^{(V)} \geq \bar{t}_{i,e}^{(E)} + \tau_{i, e}^{(E)} - M (1 - x_{i,e}) \\
-\bar{t}_{i,v}^{(V)} \leq \bar{t}_{i,e}^{(E)} + M x_{i,e}
-\end{cases}
+\begin{split}
+\bar{t}_{i,v}^{(V)} & \geq \bar{t}_{i,e}^{(E)} + x_{i,e}\tau_{i, e}^{(E)} - (1 - x_{i,e}) H \\
+& = \bar{t}_{i,e}^{(E)} + x_{i,e} \left( \tau_{i, e}^{(E)} + H \right) - H
+\end{split}
 ```
 
-With the base case
+Given that the time horizon $H$ is larger than any potential time delay, we degenerate this constraint to $\bar{t}_{i,v}^{(V)} \geq 0 \geq$ (some negative value). Note that in the relaxation (selection variable in $[0, 1]$ rather than $\{0, 1\}$) will almost lead to zero traveling time at every vertex and edge.
+
+The above provides the iteration from an edge arrival time $\bar{t}_{i,e}^{(E)}$ to a vertex arrival time $\bar{t}_{i,v}^{(V)}$. The same can be applied to the iteration from a vertex arrival time to an edge arrival time.
+
 ```math
-\bar{t}_{i,v_i^{(s)}} \geq t_i^{(s)} \; \forall i \in \mathcal{A}
+\bar{t}_{i,e}^{(E)} \geq \bar{t}_{i,u}^{(V)} + y_{i,u} \left( \tau_{i,u}^{(V)} + H \right) - H
+```
+
+This iterative process starts from the base case
+```math
+\bar{t}_{i,v_i^{(s)}}^{(V)} = t_i^{(s)} \; \forall i \in \mathcal{A}
 ```
 
 - **Vertex Conflict**: at any given time, a vertex can only have no more than 1 agent. i.e. for any pair of agents $i,j \in \mathcal{A}$ and any vertex $v$. The article [Linear Optimization - Putting gaps between scheduled items?](https://math.stackexchange.com/questions/2491500/linear-optimization-putting-gaps-between-scheduled-items?noredirect=1&lq=1) provides detail and reasoning about the formulation. In short, suppose we have the starting and ending time of two events $i,j$ being $S_i, E_i, S_j, E_j$. The formulation of the scheduling the 2 events with at least a time gap $G$ in the middle is as follows
