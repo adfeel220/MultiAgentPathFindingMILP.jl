@@ -180,7 +180,7 @@ y_{i,v,t-1} + \sum_{e = (u, v) \in \mathcal{E}} x_{i,e,t-1} = y_{i,v,t} + \sum_{
 
 Agent $i$ must choose either to stay at the vertex or go to the next vertex. i.e. $\forall i \in \mathcal{A}, v \in \mathcal{V}, t \in \mathcal{T}_i$
 ```math
-y_{i,v,t} + \sum_{e = (v, w) \in \mathcal{E}} x_{i,e,t-1} \leq 1
+y_{i,v,t} + \sum_{e = (v, w) \in \mathcal{E}} x_{i,e,t} \leq 1
 ```
 
 At each time frame within agent's lifespan, an agent can only be present at one place. Either on a vertex or on an edge. i.e. $\forall i \in \mathcal{A}, t \in \mathcal{T}_i$
@@ -193,7 +193,7 @@ Also, we can force some agents to travel through certain middle vertices $\mathc
 \sum_{t \in \mathcal{T}_i}y_{i,v',t} \geq 1 \; \forall v' \in \mathcal{M}_i
 ```
 
-One can also enforce vertex-binding for some vertex $v'$ if it's required
+One can also enforce vertex-binding for some vertex $v'$ if it's required. i.e. $\forall i \in \mathcal{A}, t \in \mathcal{T}$
 ```math
 y_{i,v',t} \geq \sum_{e = (u, v') \in \mathcal{E}} x_{i,e,t-1}
 ```
@@ -433,7 +433,7 @@ With the base case
 
 ### Proposed Algorithm
 
-To avoid the potential waste of computational resource by computing $\delta_{i,j,v}$ and $\delta_{i,j,e}$ which are $|V|^2 (|V| + |E|)$ integer constraints, we can use a **branch-and-constrain** technique as what has been done for the **conflict-based search** for the conflict constraints. i.e.
+To avoid the potential waste of computational resource by computing $\delta_{i,j,v}$ and $\delta_{i,j,e}$ which are $|A|^2 (|V| + |E|)$ integer constraints, we can use a **branch-and-constrain** technique as what has been done for the **conflict-based search** for the conflict constraints. i.e.
 
 Let $A_{i,v}^{(V)}$ be the arriving time of agent $i$ on vertex $v$ and $D_{i,v}^{(V)}$ be the departure time of agent $j$ on vertex $j$. The same applies to edge arriving time $A_{i,e}^{(E)}$ and $D_{i,e}^{(E)}$.
 

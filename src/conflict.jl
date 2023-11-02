@@ -156,7 +156,6 @@ function detect_edge_conflict(
 
     for (agent_id, itinerary) in enumerate(edges_timing)
         for (step_id, (timestamp, edge)) in enumerate(itinerary)
-
             finish_time, (from_v, to_v) = edges_timing[agent_id][step_id]
             if timestamp ≈ finish_time
                 continue
