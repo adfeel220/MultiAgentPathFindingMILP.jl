@@ -267,7 +267,7 @@ end
         integer, big_M
     )
 
-Modify a JuMP model by adding the variable, constraints and objective to compute continuous-time MAPH problem
+Modify a JuMP model by adding the variable, constraints and objective to compute continuous-time MAPF problem
 
 # Arguments
 
@@ -427,7 +427,7 @@ end
         integer, optimizer, silent, big_M
     )
 
-Compute the MAPH problem in continuous time from a set of source vertices to target vertices.
+Compute the MAPF problem in continuous time from a set of source vertices to target vertices.
 Traversal of each vertex and edge comes with a cost.
 Returns the selected vertices and edges for each agent
 
@@ -460,16 +460,20 @@ function mapf_continuous_time(
     edge_wait_time::AbstractArray,
     vertex_cost::AbstractArray=vertex_wait_time,
     edge_cost::AbstractArray=edge_wait_time,
-    departure_time::Vector{T}=zeros(length(source_vertices));
+    departure_time::Vector{Float64}=zeros(Float64, length(source_vertices));
     integer::Bool=true,
     optimizer=HiGHS.Optimizer,
     silent::Bool=true,
-    big_M::Real=100.0,
+    big_M::Float64=100.0,
     swap_constraint::Bool=true,
-) where {T<:Real}
+    timeout::Float64=-1.0,
+)
     model = Model(optimizer)
     if silent
         set_silent(model)
+    end
+    if timeout > 0.0
+        set_time_limit_sec(model, timeout)
     end
 
     mapf_continuous_time!(
@@ -526,5 +530,5 @@ function mapf_continuous_time(
         sort!(agent_edges; by=(x -> first(x)))
     end
 
-    return valid_vertices, valid_edges
+    return valid_vertices, valid_edges, objective_value(model)
 end
