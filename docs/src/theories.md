@@ -180,7 +180,7 @@ y_{i,v,t-1} + \sum_{e = (u, v) \in \mathcal{E}} x_{i,e,t-1} = y_{i,v,t} + \sum_{
 
 Agent $i$ must choose either to stay at the vertex or go to the next vertex. i.e. $\forall i \in \mathcal{A}, v \in \mathcal{V}, t \in \mathcal{T}_i$
 ```math
-y_{i,v,t} + \sum_{e = (v, w) \in \mathcal{E}} x_{i,e,t-1} \leq 1
+y_{i,v,t} + \sum_{e = (v, w) \in \mathcal{E}} x_{i,e,t} \leq 1
 ```
 
 At each time frame within agent's lifespan, an agent can only be present at one place. Either on a vertex or on an edge. i.e. $\forall i \in \mathcal{A}, t \in \mathcal{T}_i$
@@ -193,7 +193,7 @@ Also, we can force some agents to travel through certain middle vertices $\mathc
 \sum_{t \in \mathcal{T}_i}y_{i,v',t} \geq 1 \; \forall v' \in \mathcal{M}_i
 ```
 
-One can also enforce vertex-binding for some vertex $v'$ if it's required
+One can also enforce vertex-binding for some vertex $v'$ if it's required. i.e. $\forall i \in \mathcal{A}, t \in \mathcal{T}$
 ```math
 y_{i,v',t} \geq \sum_{e = (u, v') \in \mathcal{E}} x_{i,e,t-1}
 ```
@@ -333,21 +333,31 @@ For the vertices, since multiple edges can impose constraints to a vertex, we ne
 ```math
 \begin{split}
 x_{i,e} = 1 & \Rightarrow \bar{t}_{i,v}^{(V)} \geq \bar{t}_{i,e}^{(E)} + \tau_{i, e}^{(E)} \\
-x_{i,e} = 0 & \Rightarrow \bar{t}_{i,v}^{(V)} \leq \bar{t}_{i,e}^{(E)}
+x_{i,e} = 0 & \Rightarrow \text{(no specific constraint)}
 \end{split}
 ```
 
-The above expression is equivalent to the formulation below with a big constant $M$
+Note that applying $\bar{t}_{i,v}^{(V)} \geq \bar{t}_{i,e}^{(E)} + x_{i,e} \tau_{i, e}^{(E)}$ does not solve the problem, because it implies $\bar{t}_{i,v}^{(V)} \geq \bar{t}_{i,e}^{(E)}$ when $x_{i,e} = 0$, which can bring cyclic dependency and make the problem infeasible. We can not write $\bar{t}_{i,v}^{(V)} \geq x_{i,e} \left( \bar{t}_{i,e}^{(E)} + \tau_{i, e}^{(E)} \right)$ either since this constraint is nonlinear.
+
+The above expression is equivalent to the formulation below with the schedule time horizon $H$
 ```math
-\begin{cases}
-\bar{t}_{i,v}^{(V)} \geq \bar{t}_{i,e}^{(E)} + \tau_{i, e}^{(E)} - M (1 - x_{i,e}) \\
-\bar{t}_{i,v}^{(V)} \leq \bar{t}_{i,e}^{(E)} + M x_{i,e}
-\end{cases}
+\begin{split}
+\bar{t}_{i,v}^{(V)} & \geq \bar{t}_{i,e}^{(E)} + x_{i,e}\tau_{i, e}^{(E)} - (1 - x_{i,e}) H \\
+& = \bar{t}_{i,e}^{(E)} + x_{i,e} \left( \tau_{i, e}^{(E)} + H \right) - H
+\end{split}
 ```
 
-With the base case
+Given that the time horizon $H$ is larger than any potential time delay, we degenerate this constraint to $\bar{t}_{i,v}^{(V)} \geq 0 \geq$ (some negative value). Note that in the relaxation (selection variable in $[0, 1]$ rather than $\{0, 1\}$) will almost lead to zero traveling time at every vertex and edge.
+
+The above provides the iteration from an edge arrival time $\bar{t}_{i,e}^{(E)}$ to a vertex arrival time $\bar{t}_{i,v}^{(V)}$. The same can be applied to the iteration from a vertex arrival time to an edge arrival time.
+
 ```math
-\bar{t}_{i,v_i^{(s)}} \geq t_i^{(s)} \; \forall i \in \mathcal{A}
+\bar{t}_{i,e}^{(E)} \geq \bar{t}_{i,u}^{(V)} + y_{i,u} \left( \tau_{i,u}^{(V)} + H \right) - H
+```
+
+This iterative process starts from the base case
+```math
+\bar{t}_{i,v_i^{(s)}}^{(V)} = t_i^{(s)} \; \forall i \in \mathcal{A}
 ```
 
 - **Vertex Conflict**: at any given time, a vertex can only have no more than 1 agent. i.e. for any pair of agents $i,j \in \mathcal{A}$ and any vertex $v$. The article [Linear Optimization - Putting gaps between scheduled items?](https://math.stackexchange.com/questions/2491500/linear-optimization-putting-gaps-between-scheduled-items?noredirect=1&lq=1) provides detail and reasoning about the formulation. In short, suppose we have the starting and ending time of two events $i,j$ being $S_i, E_i, S_j, E_j$. The formulation of the scheduling the 2 events with at least a time gap $G$ in the middle is as follows
@@ -433,7 +443,7 @@ With the base case
 
 ### Proposed Algorithm
 
-To avoid the potential waste of computational resource by computing $\delta_{i,j,v}$ and $\delta_{i,j,e}$ which are $|V|^2 (|V| + |E|)$ integer constraints, we can use a **branch-and-constrain** technique as what has been done for the **conflict-based search** for the conflict constraints. i.e.
+To avoid the potential waste of computational resource by computing $\delta_{i,j,v}$ and $\delta_{i,j,e}$ which are $|A|^2 (|V| + |E|)$ integer constraints, we can use a **branch-and-constrain** technique as what has been done for the **conflict-based search** for the conflict constraints. i.e.
 
 Let $A_{i,v}^{(V)}$ be the arriving time of agent $i$ on vertex $v$ and $D_{i,v}^{(V)}$ be the departure time of agent $j$ on vertex $j$. The same applies to edge arriving time $A_{i,e}^{(E)}$ and $D_{i,e}^{(E)}$.
 

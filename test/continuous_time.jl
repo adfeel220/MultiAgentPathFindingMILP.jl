@@ -30,28 +30,37 @@ edge_cost[6, 7] = 1.0
 edge_cost[6, 8] = 1.0
 edge_cost .+= transpose(edge_cost)
 
-valid_vertices, valid_edges = mapf_continuous_time(
-    network, source_vertices, target_vertices, vertex_cost, edge_cost
+vertex_wait_time = ones(Float64, nv(network))
+edge_wait_time = ones(Float64, (nv(network), nv(network)))
+
+valid_vertices, valid_edges, objective = mapf_continuous_time(
+    network,
+    source_vertices,
+    target_vertices,
+    vertex_wait_time,
+    edge_wait_time,
+    vertex_cost,
+    edge_cost,
 )
 
 vertex_answer = [[1, 2, 6, 7], [4, 2, 6, 8], [8, 6, 2, 3]]
-vertex_timing = [[0.0, 6.0, 9.0, 11.0], [0.0, 2.0, 7.0, 9.0], [0.0, 2.0, 5.0, 7.0]]
 edge_answer = [
     [ed for ed in zip(agent_path[1:(end - 1)], agent_path[2:end])] for
     agent_path in vertex_answer
 ]
-edge_timing = [[2.0, 7.0, 10.0], [1.0, 5.0, 8.0], [1.0, 3.0, 6.0]]
+total_travel_time_answer = sum([8.0, 6.0, 7.0])
 
-for (vertices_visited, answer, timing) in zip(valid_vertices, vertex_answer, vertex_timing)
-    for ((test_time, test_v), ans_time, ans_v) in zip(vertices_visited, timing, answer)
-        @test test_time ≈ ans_time
+for (vertices_visited, answer) in zip(valid_vertices, vertex_answer)
+    for ((test_time, test_v), ans_v) in zip(vertices_visited, answer)
         @test test_v == ans_v
     end
 end
 
-for (edges_visited, answer, timing) in zip(valid_edges, edge_answer, edge_timing)
-    for ((test_time, test_ed), ans_time, ans_ed) in zip(edges_visited, timing, answer)
-        @test test_time ≈ ans_time
+total_travel_time = sum([agent_record[end][1] for agent_record in valid_vertices])
+@test total_travel_time <= total_travel_time_answer
+
+for (edges_visited, answer) in zip(valid_edges, edge_answer)
+    for ((test_time, test_ed), ans_ed) in zip(edges_visited, answer)
         @test test_ed == ans_ed
     end
 end

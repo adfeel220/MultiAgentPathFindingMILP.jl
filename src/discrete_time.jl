@@ -14,16 +14,17 @@ function mapf_discrete_time!(
     source_vertices::Vector{Int},
     target_vertices::Vector{Int},
     # dim: [agent,] vertex
-    vertex_cost::Array{T},
+    vertex_cost::AbstractArray,
     # dim: [agent,] from_vertex, to_vertex
-    edge_cost::Array{T},
+    edge_cost::AbstractArray,
     departure_time::Vector{Int}=zeros(Int, nv(network));
     time_duration::Int=ne(network),
     vertex_var_name=:vertex,
     edge_var_name=:edge,
     integer::Bool=true,
-    vertex_binding::Bool=true,
-) where {T<:Real}
+    vertex_binding::Bool=false,
+    vertex_visit::Symbol=:auto, # `:auto` needs to wait if vertex cost > 0, `:yes` means always needs to wait, `:no` means not enforced
+)
     @assert length(source_vertices) == length(target_vertices) == length(departure_time) "The number of agents must agree between source vertices, target vertices, and departure time"
     check_overlap_on_vertex(source_vertices, "Invalid source vertices for agents")
     check_overlap_on_vertex(target_vertices, "Invalid target vertices for agents")
@@ -31,7 +32,13 @@ function mapf_discrete_time!(
     @assert 2 <= ndims(edge_cost) <= 3 "Edge cost can only be 3 dimensional (agent, vertex, vertex) or 2 (vertex, vertex), but get $(ndims(edge_cost))-dimensions"
     @assert all(departure_time .>= zero(eltype(departure_time))) "Departure time must be non-negative integer"
 
-    edge_tuples = [(src(ed), dst(ed)) for ed in edges(network)]
+    if is_directed(network)
+        edge_tuples = [(src(ed), dst(ed)) for ed in edges(network)]
+    else
+        edge_tuples = reduce(
+            vcat, [[(src(ed), dst(ed)), (dst(ed), src(ed))] for ed in edges(network)]
+        )
+    end
     n_agents = length(source_vertices)
 
     all_agents = Base.OneTo(n_agents)
@@ -152,6 +159,26 @@ function mapf_discrete_time!(
                     sum(edge_select_vars[agent_id, ed, t] for ed in edge_tuples) == 1
                 )
             end
+
+            # Agent must pay the cost of vertex if pass through it
+            if vertex_visit in (:auto, :yes)
+                for v in vertices(network), t in agent_departure_time:(time_duration - 2)
+                    vcost = if ndims(vertex_cost) == 2
+                        vertex_cost[agent_id, v]
+                    else
+                        vertex_cost[v]
+                    end
+                    if vertex_visit == :yes || vcost > zero(eltype(vertex_cost))
+                        @constraint(
+                            model,
+                            vertex_select_vars[agent_id, v, t + 1] >= sum(
+                                edge_select_vars[agent_id, (prev_v, v), t] for
+                                prev_v in inneighbors(network, v)
+                            )
+                        )
+                    end
+                end
+            end
         end
     end
 
@@ -253,16 +280,17 @@ function mapf_discrete_time(
     source_vertices::Vector{Int},
     target_vertices::Vector{Int},
     # dim: [agent,] vertex 
-    vertex_cost::Array{T},
+    vertex_cost::AbstractArray,
     # dim: [agent,] from_vertex, to_vertex
-    edge_cost::Array{T},
+    edge_cost::AbstractArray,
     departure_time::Vector{Int}=zeros(Int, length(source_vertices));
     time_duration::Int=ne(network),
     integer::Bool=true,
-    vertex_binding::Bool=true,
+    vertex_binding::Bool=false,
+    vertex_visit::Symbol=:auto, # `:auto` needs to wait if vertex cost > 0, `:yes` means always needs to wait, `:no` means not enforced
     optimizer=HiGHS.Optimizer,
     silent::Bool=true,
-) where {T<:Real}
+)
     model = Model(optimizer)
     if silent
         set_silent(model)
@@ -280,6 +308,7 @@ function mapf_discrete_time(
         vertex_var_name=:vertex,
         edge_var_name=:edge,
         vertex_binding=vertex_binding,
+        vertex_visit=vertex_visit,
         integer=integer,
     )
     optimize!(model)
