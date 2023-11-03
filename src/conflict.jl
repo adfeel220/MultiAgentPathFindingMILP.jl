@@ -156,11 +156,6 @@ function detect_edge_conflict(
 
     for (agent_id, itinerary) in enumerate(edges_timing)
         for (step_id, (timestamp, edge)) in enumerate(itinerary)
-            finish_time, (from_v, to_v) = edges_timing[agent_id][step_id]
-            if timestamp ≈ finish_time
-                continue
-            end
-
             inverted = false
             if detect_swap
                 # keep the ascending order of edge representation to detect swapping effect
@@ -169,6 +164,7 @@ function detect_edge_conflict(
                     inverted = true
                 end
             end
+            finish_time, vertex = vertices_timing[agent_id][step_id + 1]
 
             if haskey(edge_occupancy, edge)
                 push!(edge_occupancy[edge], (true, agent_id, timestamp, inverted))
@@ -180,7 +176,7 @@ function detect_edge_conflict(
         end
     end
 
-    # Check if any violation, i.e. for any edge, later agent must enter after previosu agent leaves
+    # Check if any violation, i.e. for any edge, later agent must enter after previous agent leaves
     for (edge, occupancy) in edge_occupancy
         sort!(occupancy; by=(x -> x[3]))
 
