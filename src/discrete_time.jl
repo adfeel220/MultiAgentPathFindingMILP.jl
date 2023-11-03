@@ -173,7 +173,7 @@ function mapf_discrete_time!(
                             model,
                             vertex_select_vars[agent_id, v, t + 1] >= sum(
                                 edge_select_vars[agent_id, (prev_v, v), t] for
-                                prev_v in inneighbors(v)
+                                prev_v in inneighbors(network, v)
                             )
                         )
                     end
