@@ -5,6 +5,7 @@
         network, source_vertices, target_vertices,
         vertex_select_vars, edge_select_vars
     )
+Add connectivity constraints to solve parallel shortest paths
 """
 function add_continuous_connectivity_constraints!(
     model::Model,
@@ -275,10 +276,10 @@ Modify a JuMP model by adding the variable, constraints and objective to compute
 - `network::AbstractGraph`: a directed graph representing the map
 - `source_vertices::Vector{Int}`: an array of vertices indicating each agent's source vertex (the vertex an agent starts travel from)
 - `target_vertices::Vector{Int}`: an array of vertices indicating each agent's target vertex (the vertex an agent end its travel at)
-- `vertex_wait_time::Array{<:Real}`: minimum staying time for agent at each vertex. dimension = ([agent,] vertex)
-- `edge_wait_time::Array{<:Real}`: minimum travel time for agent on each edge. dimension = ([agent,] from_vertex, to_vertex)
-- `vertex_cost::Array{<:Real}`: costs for staying at each vertex. dimension = ([agent,] vertex)
-- `edge_cost::Array{<:Real}`: costs for crossing each edge. dimension = ([agent,] from_vertex, to_vertex)
+- `vertex_wait_time::AbstractArray`: minimum staying time for agent at each vertex. dimension = ([agent,] vertex)
+- `edge_wait_time::AbstractArray`: minimum travel time for agent on each edge. dimension = ([agent,] from_vertex, to_vertex)
+- `vertex_cost::AbstractArray`: costs for staying at each vertex. dimension = ([agent,] vertex)
+- `edge_cost::AbstractArray`: costs for crossing each edge. dimension = ([agent,] from_vertex, to_vertex)
 - `departure_time::Vector{Float64}`: departure time for each agent at their source vertex
 
 # Keyword arguments
@@ -436,10 +437,10 @@ Returns the selected vertices and edges for each agent
 - `network::AbstractGraph`: a directed graph representing the map
 - `source_vertices::Vector{Int}`: an array of vertices indicating each agent's source vertex (the vertex an agent starts travel from)
 - `target_vertices::Vector{Int}`: an array of vertices indicating each agent's target vertex (the vertex an agent end its travel at)
-- `vertex_wait_time::Array{<:Real}`: waiting time for each agent to stay at a specific vertex. dimension = ([agent,] vertex)
-- `edge_wait_time::Array{<:Real}`: waiting time for each agent to travel on a specific edge. dimension = ([agent,] vertex, vertex), we use (from_vertex, to_vertex) to indicate an edge
-- `vertex_cost::Array{<:Real}`: costs for staying at each vertex. dimension = ([agent,] vertex). by default `= vertex_wait_time`
-- `edge_cost::Array{<:Real}`: costs for crossing each edge. dimension = ([agent,] vertex, vertex), we use (from_vertex, to_vertex) to indicate an edge. by default `= edge_wait_time`
+- `vertex_wait_time::AbstractArray`: waiting time for each agent to stay at a specific vertex. dimension = ([agent,] vertex)
+- `edge_wait_time::AbstractArray`: waiting time for each agent to travel on a specific edge. dimension = ([agent,] vertex, vertex), we use (from_vertex, to_vertex) to indicate an edge
+- `vertex_cost::AbstractArray`: costs for staying at each vertex. dimension = ([agent,] vertex). by default `= vertex_wait_time`
+- `edge_cost::AbstractArray`: costs for crossing each edge. dimension = ([agent,] vertex, vertex), we use (from_vertex, to_vertex) to indicate an edge. by default `= edge_wait_time`
 - `departure_time::Vector{Float64}`: departure time of each agent (default is `zeros(Float64, length(source_vertices))`)
 
 # Keyword arguments
