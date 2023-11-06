@@ -60,6 +60,29 @@ function parse_result(
 end
 
 """
+    right_align_get(data, idx...)
+get item with indices align to the end, only supports over-indexing (indices longer than data dimension)
+
+# Arguments
+
+- `data`: container to retrieve data from
+- `idx...`: vargs as indices to get data, can be longer than data dimension and will be aligned to the right (end)
+
+"""
+function right_align_get(data, idx...)
+    data_dim = ndims(data)
+    @assert length(idx) >= data_dim
+    align_length = min(length(idx), data_dim)
+
+    if length(idx) > data_dim
+        aligned_idx = idx[(end - align_length + 1):end]
+    else
+        aligned_idx = idx
+    end
+    return data[aligned_idx...]
+end
+
+"""
     add_objective!(
         model,
         network, vertex_cost, edge_cost,
@@ -91,37 +114,23 @@ function add_objective!(
     edge_cost::AbstractArray,
     vertex_select_vars,
     edge_select_vars,
-    vertex_arrival_time,
-    edge_arrival_time;
+    vertex_arrival_time=nothing,
+    edge_arrival_time=nothing;
     with_timing::Bool=true,
 )
     agents, edge_tuples = axes(edge_select_vars)
 
-    if ndims(edge_cost) == 3
-        edge_objective = sum(
-            edge_cost[agent_id, u, v] * edge_select_vars[agent_id, (u, v)] for
-            (u, v) in edge_tuples, agent_id in agents
-        )
-    else
-        edge_objective = sum(
-            edge_cost[u, v] * edge_select_vars[agent_id, (u, v)] for (u, v) in edge_tuples,
-            agent_id in agents
-        )
-    end
+    edge_objective = sum(
+        right_align_get(edge_cost, agent_id, u, v) * edge_select_vars[agent_id, (u, v)] for
+        (u, v) in edge_tuples, agent_id in agents
+    )
 
-    if ndims(vertex_cost) == 2
-        vertex_objective = sum(
-            vertex_cost[agent_id, v] * vertex_select_vars[agent_id, v] for
-            v in vertices(network), agent_id in agents
-        )
-    else
-        vertex_objective = sum(
-            vertex_cost[v] * vertex_select_vars[agent_id, v] for v in vertices(network),
-            agent_id in agents
-        )
-    end
+    vertex_objective = sum(
+        right_align_get(vertex_cost, agent_id, v) * vertex_select_vars[agent_id, v] for
+        v in vertices(network), agent_id in agents
+    )
 
-    if !with_timing
+    if !with_timing || isnothing(vertex_arrival_time) || isnothing(edge_arrival_time)
         return @objective(model, Min, edge_objective + vertex_objective)
     end
 
@@ -258,35 +267,106 @@ by `model[edge_select_name]`. Default value is `:edge_select`
 function is_path_overlap(
     model::Model,
     vertex_select_name::Symbol=:vertex_select,
-    edge_select_name::Symbol=:edge_select,
+    edge_select_name::Symbol=:edge_select;
+    swap_constraint::Bool=true,
 )::Bool
     vertex_select_vars = value.(model[vertex_select_name])
     agents, traveled_vertices = axes(vertex_select_vars)
-    # occupancy[v] stores the indices of any agent occupies v, <= 0 means no agent occupy yet
-    occupancy = zeros(Int, length(traveled_vertices))
+    # vertex_occupancy[v] stores the indices of any agent occupies v, <= 0 means no agent occupy yet
+    vertex_occupancy = Set{Int}()
     for agent_id in agents, v in traveled_vertices
         if vertex_select_vars[agent_id, v] > 0.5
-            if occupancy[v] > 0
+            if v in vertex_occupancy
                 return true
             end
-            occupancy[v] = agent_id
+            push!(vertex_occupancy, v)
         end
     end
 
     edge_select_vars = value.(model[edge_select_name])
     agents, traveled_edges = axes(edge_select_vars)
-    # occupancy[ed] stores the indices of any agent occupies ed, <= 0 means no agent occupy yet
-    occupancy = zeros(Int, (length(traveled_edges), length(traveled_edges)))
-    for agent_id in agents, (u, v) in traveled_edges
-        if edge_select_vars[agent_id, (u, v)] > 0.5
-            if occupancy[u, v] > 0
+    # edge_occupancy[ed] stores the indices of any agent occupies ed, <= 0 means no agent occupy yet
+    edge_occupancy = Set{Tuple{Int,Int}}()
+    for agent_id in agents, ed in traveled_edges
+        if swap_constraint && ed[1] > ed[2]
+            reverse!(ed)
+        end
+        if edge_select_vars[agent_id, ed] > 0.5
+            if ed in edge_occupancy
                 return true
             end
-            occupancy[u, v] = agent_id
+            push!(edge_occupancy, ed)
         end
     end
 
     return false
+end
+
+"""
+    parallel_shortest_path_result(
+        source_vertices, departure_time,
+        vertex_wait_time, edge_wait_time,
+        vertex_select_vars, edge_select_vars
+    )
+Calculate the timed result for parallel shortest path solution, returns the vertex and edge arrival timing
+
+# Arguments
+
+- `source_vertices::Vector{Int}`: an array of vertices indicating each agent's source vertex (the vertex an agent starts travel from)
+- `departure_time::Vector{Float64}`: departure time for each agent at their source vertex, by default all zeros
+- `vertex_wait_time::AbstractArray`: minimum staying time for agent at each vertex. dimension = ([agent,] vertex)
+- `edge_wait_time::AbstractArray`: minimum travel time for agent on each edge. dimension = ([agent,] from_vertex, to_vertex)
+- `vertex_select_vars`: JuMP variables for vertex selection.
+- `edge_select_vars`: JuMP variables for edge selection.
+
+"""
+function parallel_shortest_path_result(
+    source_vertices::Vector{Int},
+    departure_time::Vector{Float64},
+    vertex_wait_time::AbstractArray,
+    edge_wait_time::AbstractArray,
+    vertex_select_vars,
+    edge_select_vars,
+)
+    # Choose selected vertices
+    vertex_select_values = value.(vertex_select_vars)
+    agents, traveled_vertices = axes(vertex_select_values)
+    valid_vertices = [
+        [v for v in traveled_vertices if vertex_select_values[agent_id, v] > 0.5] for
+        agent_id in agents
+    ]
+
+    # Choose selected edges
+    edge_select_values = value.(edge_select_vars)
+    agents, traveled_edges = axes(edge_select_values)
+    valid_edges = [
+        [ed for ed in traveled_edges if edge_select_values[agent_id, ed] > 0.5] for
+        agent_id in agents
+    ]
+
+    # Timing record to be returned
+    vertex_timing = [similar(vs, Tuple{Float64,Int}) for vs in valid_vertices]
+    edge_timing = [similar(eds, Tuple{Float64,Tuple{Int,Int}}) for eds in valid_edges]
+
+    for agent_id in agents
+        prev_v = source_vertices[agent_id]
+        event_time = departure_time[agent_id]
+        vertex_timing[agent_id][begin] = (event_time, prev_v)
+
+        for step in 1:length(valid_edges[agent_id])
+            # edge
+            edge = first(edge for edge in valid_edges[agent_id] if edge[begin] == prev_v)
+            event_time += right_align_get(edge_wait_time, agent_id, edge...)
+            edge_timing[agent_id][step] = (event_time, edge)
+
+            # vertex
+            prev_v = edge[end]
+            event_time += right_align_get(vertex_wait_time, agent_id, prev_v)
+            vertex_timing[agent_id][step + 1] = (event_time, prev_v)
+        end
+    end
+
+    return vertex_timing, edge_timing
 end
 
 """
@@ -375,12 +455,6 @@ function mapf_continuous_time_dynamic_conflict(
     )
     model[:edge_select] = edge_select_vars
 
-    vertex_arrival_time = @variable(model, v_arr[a=agents, v=vertices(network)] >= 0)
-    model[:vertex_time] = vertex_arrival_time
-
-    edge_arrival_time = @variable(model, e_arr[a=agents, ed=edge_tuples] >= 0)
-    model[:edge_time] = edge_arrival_time
-
     # Solve parallel shortest path first
     add_continuous_connectivity_constraints!(
         model,
@@ -399,27 +473,30 @@ function mapf_continuous_time_dynamic_conflict(
         edge_cost,
         vertex_select_vars,
         edge_select_vars,
-        vertex_arrival_time,
-        edge_arrival_time;
         with_timing=false,
     )
 
     optimize!(model)
-    @assert termination_status(model) == OPTIMAL
+    @assert termination_status(model) == OPTIMAL "Parallel shortest paths cannot find solution"
 
     if !is_path_overlap(model)
-        # TODO: calculate solution as parallel shortest path
-        @info "Solution found with parallel shortest path"
-        return nothing
+        valid_vertices, valid_edges = parallel_shortest_path_result(
+            source_vertices,
+            departure_time,
+            vertex_wait_time,
+            edge_wait_time,
+            vertex_select_vars,
+            edge_select_vars,
+        )
+
+        return valid_vertices, valid_edges, objective_value(model)
     end
 
-    # The parallel shortest paths contain overlaps, but relaxed timing
-    # constraints does not have meaning. Suppose the time horizon is
-    # sufficiently large, all timing/conflict constraints are almost
-    # true in all cases.
-    if !is_binary
-        return parse_result(model)
-    end
+    vertex_arrival_time = @variable(model, v_arr[a=agents, v=vertices(network)] >= 0)
+    model[:vertex_time] = vertex_arrival_time
+
+    edge_arrival_time = @variable(model, e_arr[a=agents, ed=edge_tuples] >= 0)
+    model[:edge_time] = edge_arrival_time
 
     # Timing constraints
     add_continuous_timing_constraints!(
