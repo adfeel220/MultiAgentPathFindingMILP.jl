@@ -15,7 +15,9 @@ using HiGHS: HiGHS
 using MathOptInterface: OPTIMAL
 
 export mapf_continuous_time, mapf_discrete_time
+export mapf_continuous_time_dynamic_conflict
 
+include("dynamic_continuous.jl")
 include("conflict.jl")
 include("continuous_time.jl")
 include("discrete_time.jl")
