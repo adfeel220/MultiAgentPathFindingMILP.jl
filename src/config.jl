@@ -1,6 +1,7 @@
 
 """
 A structure to hold all necessary information for executing an MAPF solver (either continuous or discrete time)
+`T`: type for waiting time;  `C`: type for costs; `D`: type for departure time. All `<:Real`
 """
 @kwdef mutable struct MapfConfig{T<:Real,C<:Real,D<:Real}
     network::DiGraph
@@ -81,6 +82,7 @@ function mapf_discrete_time(config::MapfConfig)
         config.target_vertices,
         config.vertex_cost,
         config.edge_cost,
+        [round(Int, dt) for dt in config.departure_time],
         [round(Int, t) for t in config.departure_time];
         integer=config.is_binary,
         time_duration=config.time_duration,
