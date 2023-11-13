@@ -35,13 +35,16 @@ end
     parallel_lines(a, edge_break)
 Create a scenario where all agents can go to their destination with a dedicated path without any conflict
 
-The generated graph has `|V| = `
+The generated graph has `|V| = 2*a`
 
 # Arguments
 - `a::Int`: number of agents
+
+# Keyword arguments
 - `edge_break::Int`: number of segments to break down in discrete case, by default `1` (no break)
+- `timeout::Float64`: maximum optimization time for the solvers, by defualt `-1.0` (no timeout)
 """
-function parallel_lines(a::Int, edge_break::Int=1)
+function parallel_lines(a::Int; edge_break::Int=1, timeout::Float64=-1.0)
     source_vertices = Vector{Int}(1:a)
     target_vertices = Vector{Int}((a + 1):(2 * a))
 
@@ -61,10 +64,15 @@ function parallel_lines(a::Int, edge_break::Int=1)
         vertex_wait_time=continuous_vertex_wait_time,
         edge_wait_time=continuous_edge_wait_time,
         time_horizon=5.0 + edge_break,
+        timeout=timeout,
     )
 
     discrete_network = DiGraph(a * (edge_break + 1))
     discrete_vertex_cost = ones(Float64, nv(discrete_network))
+    # no cost to stay at the target, so they can stay as long as they want
+    for v in target_vertices
+        discrete_vertex_cost[v] = 0.0
+    end
 
     for (sv, tv) in zip(source_vertices, target_vertices)
         prev_v = sv
@@ -82,6 +90,7 @@ function parallel_lines(a::Int, edge_break::Int=1)
         vertex_cost=discrete_vertex_cost,
         edge_cost=discrete_edge_cost,
         time_duration=edge_break + 2,
+        timeout=timeout,
     )
 
     return continuous_experiment, discrete_experiment
@@ -98,9 +107,12 @@ The generated base graph has `|V| = 2*a + 1` and `|E| = 2*a`
 
 # Arguments
 - `a::Int`: number of agents
+
+# Keyword arguments
 - `edge_break::Int`: number of segments to break down in discrete case, by default `1` (no break)
+- `timeout::Float64`: maximum optimization time for the solvers, by defualt `-1.0` (no timeout)
 """
-function directional_star(a::Int, edge_break::Int=1)
+function directional_star(a::Int; edge_break::Int=1, timeout::Float64=-1.0)
     source_vertices = Vector{Int}(2:(a + 1))
     target_vertices = Vector{Int}((a + 2):(2 * a + 1))
 
@@ -123,11 +135,16 @@ function directional_star(a::Int, edge_break::Int=1)
         vertex_wait_time=continuous_vertex_wait_time,
         edge_wait_time=continuous_edge_wait_time,
         time_horizon=3.0 * edge_break * a,
+        timeout=timeout,
     )
 
     discrete_network = break_segments(continuous_network, edge_break)
     discrete_vertex_cost = ones(Float64, nv(discrete_network))
     discrete_vertex_cost[1] = 2.0
+    # no cost to stay at the target, so they can stay as long as they want
+    for v in target_vertices
+        discrete_vertex_cost[v] = 0.0
+    end
 
     discrete_edge_cost = ones(Float64, (nv(discrete_network), nv(discrete_network)))
     discrete_experiment = MapfConfig(;
@@ -137,6 +154,7 @@ function directional_star(a::Int, edge_break::Int=1)
         vertex_cost=discrete_vertex_cost,
         edge_cost=discrete_edge_cost,
         time_duration=5 * a * edge_break,
+        timeout=timeout,
     )
 
     return continuous_experiment, discrete_experiment
@@ -153,9 +171,12 @@ There will be `row + column` agents, `2*(row+column) + row*column` vertices, and
 # Arguments
 - `row::Int`: number of rows
 - `column::Int`: number of columns
+
+# Keyword arguments
 - `edge_break::Int`: number of segments to break down in discrete case, by default `1` (no break)
+- `timeout::Float64`: maximum optimization time for the solvers, by defualt `-1.0` (no timeout)
 """
-function grid_cross(row::Int, column::Int, edge_break::Int=1)
+function grid_cross(row::Int, column::Int; edge_break::Int=1, timeout::Float64=-1.0)
     num_agent = row + column
     source_vertices = Vector{Int}(1:num_agent)
     target_vertices = Vector{Int}((num_agent + 1):(2 * num_agent))
@@ -195,11 +216,16 @@ function grid_cross(row::Int, column::Int, edge_break::Int=1)
         vertex_wait_time=continuous_vertex_wait_time,
         edge_wait_time=continuous_edge_wait_time,
         time_horizon=2.0 * (row + column) * edge_break * num_agent,
+        timeout=timeout,
     )
 
     discrete_network = break_segments(continuous_network, edge_break)
     discrete_vertex_cost = ones(Float64, nv(discrete_network))
     discrete_edge_cost = ones(Float64, (nv(discrete_network), nv(discrete_network)))
+    # no cost to stay at the target, so they can stay as long as they want
+    for v in target_vertices
+        discrete_vertex_cost[v] = 0.0
+    end
 
     discrete_experiment = MapfConfig(;
         network=discrete_network,
@@ -207,7 +233,8 @@ function grid_cross(row::Int, column::Int, edge_break::Int=1)
         target_vertices=target_vertices,
         vertex_cost=discrete_vertex_cost,
         edge_cost=discrete_edge_cost,
-        time_duration=(row + column) * num_agent * edge_break,
+        time_duration=2 * (row + column) * num_agent * edge_break,
+        timeout=timeout,
     )
 
     return continuous_experiment, discrete_experiment
@@ -224,13 +251,16 @@ The generated base graph has `|V| = n + a - 1` and `|E| = n + a - 2`
 # Arguments
 - `n::Int`: distance each agent must travel to their destination
 - `a::Int`: number of agents
-- `edge_break::Int`: number of segments to break down in discrete case, by default `1` (no break)
 
 # Keyword arguments
+- `edge_break::Int`: number of segments to break down in discrete case, by default `1` (no break)
 - `delayed_departure::Bool`: agents in the front (larger indices) will depart later than
 agents at the back if this is `true`. All agents depart at the same time otherwise (default behavior)
+- `timeout::Float64`: maximum optimization time for the solvers, by defualt `-1.0` (no timeout)
 """
-function line_overlap(n::Int, a::Int, edge_break::Int=1; delayed_departure::Bool=false)
+function line_overlap(
+    n::Int, a::Int; edge_break::Int=1, delayed_departure::Bool=false, timeout::Float64=-1.0
+)
     source_vertices = Vector{Int}(1:a)
     target_vertices = Vector{Int}((n - 1) .+ (1:a))
 
@@ -253,11 +283,16 @@ function line_overlap(n::Int, a::Int, edge_break::Int=1; delayed_departure::Bool
         edge_wait_time=continuous_edge_wait_time,
         departure_time=[Float64(t) for t in departure_time],
         time_horizon=Float64(edge_break * (n + a) * a),
+        timeout=timeout,
     )
 
     discrete_network = break_segments(continuous_network, edge_break)
     discrete_vertex_cost = ones(Float64, nv(discrete_network))
     discrete_edge_cost = ones(Float64, (nv(discrete_network), nv(discrete_network)))
+    # no cost to stay at the target, so they can stay as long as they want
+    for v in target_vertices
+        discrete_vertex_cost[v] = 0.0
+    end
 
     discrete_experiment = MapfConfig(;
         network=discrete_network,
@@ -266,7 +301,8 @@ function line_overlap(n::Int, a::Int, edge_break::Int=1; delayed_departure::Bool
         vertex_cost=discrete_vertex_cost,
         edge_cost=discrete_edge_cost,
         departure_time=[Int(t) for t in departure_time],
-        time_duration=(n + a) * a * edge_break,
+        time_duration=2 * (n + a) * a * edge_break,
+        timeout=timeout,
     )
 
     return continuous_experiment, discrete_experiment
@@ -284,12 +320,13 @@ The generated base graph has `|V| = a + 1` and `|E| = 3*a`
 
 # Arguments
 - `a::Int`: number of agents
-- `edge_break::Int`: number of segments to break down in discrete case, by default `1` (no break)
 
 # Keyword arguments
+- `edge_break::Int`: number of segments to break down in discrete case, by default `1` (no break)
 - `shift::Int`: the counter-directional shift with respect to the starting and ending vertices of the agents
+- `timeout::Float64`: maximum optimization time for the solvers, by defualt `-1.0` (no timeout)
 """
-function wheel_pass(a::Int, edge_break::Int=1; shift::Int=1)
+function wheel_pass(a::Int; edge_break::Int=1, shift::Int=1, timeout::Float64=-1.0)
     num_vertices = a + 1
     source_vertices = Vector{Int}(2:(a + 1))
     target_vertices = circshift(source_vertices, shift)
@@ -310,11 +347,16 @@ function wheel_pass(a::Int, edge_break::Int=1; shift::Int=1)
         vertex_wait_time=continuous_vertex_wait_time,
         edge_wait_time=continuous_edge_wait_time,
         time_horizon=Float64(edge_break * a^2),
+        timeout=timeout,
     )
 
     discrete_network = break_segments(continuous_network, edge_break)
     discrete_vertex_cost = ones(Float64, nv(discrete_network))
     discrete_edge_cost = ones(Float64, (nv(discrete_network), nv(discrete_network)))
+    # no cost to stay at the target, so they can stay as long as they want
+    for v in target_vertices
+        discrete_vertex_cost[v] = 0.0
+    end
 
     discrete_experiment = MapfConfig(;
         network=discrete_network,
@@ -323,6 +365,7 @@ function wheel_pass(a::Int, edge_break::Int=1; shift::Int=1)
         vertex_cost=discrete_vertex_cost,
         edge_cost=discrete_edge_cost,
         time_duration=a^2 * edge_break,
+        timeout=timeout,
     )
 
     return continuous_experiment, discrete_experiment
@@ -341,12 +384,15 @@ The generated base graph has `|V| = 2*a` and `|E| = 4*a`
 
 # Arguments
 - `a::Int`: number of agents
-- `edge_break::Int`: number of segments to break down in discrete case, by default `1` (no break)
 
 # Keyword arguments
+- `edge_break::Int`: number of segments to break down in discrete case, by default `1` (no break)
 - `shift::Int`: the counter-directional shift with respect to the starting and ending vertices of the agents
+- `timeout::Float64`: maximum optimization time for the solvers, by defualt `-1.0` (no timeout)
 """
-function circular_ladder_pass(a::Int, edge_break::Int=1; shift::Int=1)
+function circular_ladder_pass(
+    a::Int; edge_break::Int=1, shift::Int=1, timeout::Float64=-1.0
+)
     continuous_network = DiGraph(2 * a)
     for v in 1:(a - 1)
         add_edge!(continuous_network, v, v + 1)
@@ -377,11 +423,16 @@ function circular_ladder_pass(a::Int, edge_break::Int=1; shift::Int=1)
         vertex_wait_time=continuous_vertex_wait_time,
         edge_wait_time=continuous_edge_wait_time,
         time_horizon=Float64(edge_break * 2 * a^2),
+        timeout=timeout,
     )
 
     discrete_network = break_segments(continuous_network, edge_break)
     discrete_vertex_cost = ones(Float64, nv(discrete_network))
     discrete_edge_cost = ones(Float64, (nv(discrete_network), nv(discrete_network)))
+    # no cost to stay at the target, so they can stay as long as they want
+    for v in target_vertices
+        discrete_vertex_cost[v] = 0.0
+    end
 
     discrete_experiment = MapfConfig(;
         network=discrete_network,
@@ -390,6 +441,7 @@ function circular_ladder_pass(a::Int, edge_break::Int=1; shift::Int=1)
         vertex_cost=discrete_vertex_cost,
         edge_cost=discrete_edge_cost,
         time_duration=2 * a^2 * edge_break,
+        timeout=timeout,
     )
 
     return continuous_experiment, discrete_experiment
