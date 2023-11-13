@@ -20,6 +20,7 @@ A structure to hold all necessary information for executing an MAPF solver (eith
     time_duration::Int = length(source_vertices) * (ne(network) + nv(network))
     timeout::Float64 = -1.0
 end
+nagents(config::MapfConfig) = length(config.source_vertices)
 
 """
     mapf_continuous_time(config)
@@ -82,9 +83,9 @@ function mapf_discrete_time(config::MapfConfig)
         config.target_vertices,
         config.vertex_cost,
         config.edge_cost,
-        [round(Int, dt) for dt in config.departure_time],
-        [round(Int, t) for t in config.departure_time];
+        [round(Int, dt) for dt in config.departure_time];
         integer=config.is_binary,
         time_duration=config.time_duration,
+        timeout=config.timeout,
     )
 end
