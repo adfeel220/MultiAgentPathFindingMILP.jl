@@ -110,6 +110,7 @@ Add/update objective of the JuMP model.
 function add_objective!(
     model::Model,
     network::AbstractGraph,
+    target_vertices::Vector{Int},
     vertex_cost::AbstractArray,
     edge_cost::AbstractArray,
     vertex_select_vars,
@@ -120,28 +121,32 @@ function add_objective!(
 )
     agents, edge_tuples = axes(edge_select_vars)
 
-    edge_objective = sum(
-        right_align_get(edge_cost, agent_id, u, v) * edge_select_vars[agent_id, (u, v)] for
-        (u, v) in edge_tuples, agent_id in agents
-    )
+    edge_objective = AffExpr(0.0)
+    for (u, v) in edge_tuples, agent_id in agents
+        add_to_expression!(
+            edge_objective,
+            right_align_get(edge_cost, agent_id, u, v),
+            edge_select_vars[agent_id, (u, v)],
+        )
+    end
 
-    vertex_objective = sum(
-        right_align_get(vertex_cost, agent_id, v) * vertex_select_vars[agent_id, v] for
-        v in vertices(network), agent_id in agents
-    )
+    vertex_objective = AffExpr(0.0)
+    for v in vertices(network), agent_id in agents
+        add_to_expression!(
+            vertex_objective, right_align_get(vertex_cost, agent_id, v), vertex_select_vars[agent_id, v]
+        )
+    end
 
     if !with_timing || isnothing(vertex_arrival_time) || isnothing(edge_arrival_time)
         return @objective(model, Min, edge_objective + vertex_objective)
     end
 
-    vertex_time_objective = sum(vertex_arrival_time)
-    edge_time_objective = sum(edge_arrival_time)
+    time_objective = AffExpr(0.0)
+    for (agent_id, agent_target) in enumerate(target_vertices)
+        add_to_expression!(time_objective, vertex_arrival_time[agent_id, agent_target])
+    end
 
-    return @objective(
-        model,
-        Min,
-        edge_objective + vertex_objective + vertex_time_objective + edge_time_objective
-    )
+    return @objective(model, Min, edge_objective + vertex_objective + time_objective)
 end
 
 """
@@ -263,6 +268,9 @@ by `model[vertex_select_name]`. Default value is `:vertex_select`
 - `edge_select_name`: name of edge selection variable, one can access the variables
 by `model[edge_select_name]`. Default value is `:edge_select`
 
+# Keyword arguments
+- `swap_constraint::Bool`: whether to apply swap constraint, i.e. edge (u, v) and (v, u)
+cannot be crossed at the same time
 """
 function is_path_overlap(
     model::Model,
@@ -469,17 +477,20 @@ function mapf_continuous_time_dynamic_conflict(
     add_objective!(
         model,
         network,
+        target_vertices,
         vertex_cost,
         edge_cost,
         vertex_select_vars,
-        edge_select_vars,
+        edge_select_vars;
         with_timing=false,
     )
 
     optimize!(model)
     @assert termination_status(model) == OPTIMAL "Parallel shortest paths cannot find solution"
+    all_vars = all_variables(model)
+    current_solution = value.(all_vars)
 
-    if !is_path_overlap(model)
+    if !is_path_overlap(model; swap_constraint=swap_constraint)
         valid_vertices, valid_edges = parallel_shortest_path_result(
             source_vertices,
             departure_time,
@@ -518,6 +529,7 @@ function mapf_continuous_time_dynamic_conflict(
     add_objective!(
         model,
         network,
+        target_vertices,
         vertex_cost,
         edge_cost,
         vertex_select_vars,
@@ -529,8 +541,16 @@ function mapf_continuous_time_dynamic_conflict(
 
     # Dynamically apply conflict constraints until it's conflict-free
     while is_binary
+
+        # Set start values from previous optimization
+        set_start_value.(all_vars, current_solution)
+
+        # Run optimization
         optimize!(model)
         @assert termination_status(model) == OPTIMAL
+
+        all_vars = all_variables(model)
+        current_solution = value.(all_vars)
 
         valid_vertices, valid_edges = parse_result(model)
         vertex_signal = detect_vertex_conflict(valid_vertices, valid_edges)
@@ -567,6 +587,12 @@ function mapf_continuous_time_dynamic_conflict(
             continue
         end
 
-        return (parse_result(model)..., objective_value(model))
+        break
     end
+
+    if termination_status(model) != OPTIMAL
+        optimize!(model)
+    end
+
+    return (parse_result(model)..., objective_value(model))
 end
