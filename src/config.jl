@@ -29,7 +29,7 @@ Execute a continuous-time MAPF with a configuration
 # Arguments
 - `config::MapfConfig`: Configuration struct containing all necessary information
 """
-function mapf_continuous_time(config::MapfConfig)
+function mapf_continuous_time(config::MapfConfig; kwargs...)
     return mapf_continuous_time(
         config.network,
         config.source_vertices,
@@ -43,6 +43,7 @@ function mapf_continuous_time(config::MapfConfig)
         swap_constraint=config.swap_constraint,
         big_M=config.time_horizon,
         timeout=config.timeout,
+        kwargs...
     )
 end
 """
@@ -52,7 +53,7 @@ Execute a dynamic constraint continuous-time MAPF with a configuration
 # Arguments
 - `config::MapfConfig`: Configuration struct containing all necessary information
 """
-function mapf_continuous_time_dynamic_conflict(config::MapfConfig)
+function mapf_continuous_time_dynamic_conflict(config::MapfConfig; kwargs...)
     return mapf_continuous_time_dynamic_conflict(
         config.network,
         config.source_vertices,
@@ -66,6 +67,7 @@ function mapf_continuous_time_dynamic_conflict(config::MapfConfig)
         swap_constraint=config.swap_constraint,
         time_horizon=config.time_horizon,
         timeout=config.timeout,
+        kwargs...
     )
 end
 
@@ -76,7 +78,7 @@ Execute a discrete-time MAPF with all the information in a config file
 # Arguments
 - `config::MapfConfig`: Configuration struct containing all necessary information
 """
-function mapf_discrete_time(config::MapfConfig)
+function mapf_discrete_time(config::MapfConfig, kwargs...)
     return mapf_discrete_time(
         config.network,
         config.source_vertices,
@@ -87,5 +89,6 @@ function mapf_discrete_time(config::MapfConfig)
         integer=config.is_binary,
         time_duration=config.time_duration,
         timeout=config.timeout,
+        kwargs...
     )
 end
