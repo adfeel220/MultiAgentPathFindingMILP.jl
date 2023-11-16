@@ -43,7 +43,7 @@ function mapf_continuous_time(config::MapfConfig; kwargs...)
         swap_constraint=config.swap_constraint,
         big_M=config.time_horizon,
         timeout=config.timeout,
-        kwargs...
+        kwargs...,
     )
 end
 """
@@ -67,7 +67,7 @@ function mapf_continuous_time_dynamic_conflict(config::MapfConfig; kwargs...)
         swap_constraint=config.swap_constraint,
         time_horizon=config.time_horizon,
         timeout=config.timeout,
-        kwargs...
+        kwargs...,
     )
 end
 
@@ -89,6 +89,6 @@ function mapf_discrete_time(config::MapfConfig, kwargs...)
         integer=config.is_binary,
         time_duration=config.time_duration,
         timeout=config.timeout,
-        kwargs...
+        kwargs...,
     )
 end

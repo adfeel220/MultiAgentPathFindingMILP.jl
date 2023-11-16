@@ -273,7 +273,7 @@ function line_overlap(
     continuous_edge_wait_time =
         edge_break .* ones(Float64, (nv(continuous_network), nv(continuous_network)))
 
-    departure_time = delayed_departure ? (edge_break * 2) .* (0:a-1) : zeros(a)
+    departure_time = delayed_departure ? (edge_break * 2) .* (0:(a - 1)) : zeros(a)
 
     continuous_experiment = MapfConfig(;
         network=continuous_network,
