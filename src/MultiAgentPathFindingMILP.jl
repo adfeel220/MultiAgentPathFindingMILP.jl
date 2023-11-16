@@ -8,7 +8,7 @@ module MultiAgentPathFindingMILP
 using Graphs: AbstractGraph, DiGraph, wheel_digraph
 using Graphs: src, dst, edges, vertices, inneighbors, outneighbors, nv, ne, is_directed
 using Graphs: add_vertex!, add_edge!, rem_edge!
-using JuMP: Model, AffExpr
+using JuMP: Model, AffExpr, VariableRef
 using JuMP: @variable, @constraint, @objective
 using JuMP: set_silent, optimize!, termination_status, set_time_limit_sec
 using JuMP: value, objective_value, fix, all_variables, set_start_value, add_to_expression!

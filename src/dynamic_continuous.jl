@@ -133,7 +133,9 @@ function add_objective!(
     vertex_objective = AffExpr(0.0)
     for v in vertices(network), agent_id in agents
         add_to_expression!(
-            vertex_objective, right_align_get(vertex_cost, agent_id, v), vertex_select_vars[agent_id, v]
+            vertex_objective,
+            right_align_get(vertex_cost, agent_id, v),
+            vertex_select_vars[agent_id, v],
         )
     end
 
@@ -183,21 +185,40 @@ function add_vertex_conflict!(
     agent2::Int,
     vertex_arrival_time,
     edge_arrival_time,
+    edge_select_vars,
     time_horizon::Float64=100.0;
     binary::Bool=true,
+    heuristic_conflict::Bool=false,
 )
-    for next_v in outneighbors(network, vertex)
+    agent1_end_time = first(
+        edge_arrival_time[agent1, (vertex, next_v)] for
+        next_v in outneighbors(network, vertex) if
+        value(edge_select_vars[agent1, (vertex, next_v)]) >= 0.9
+    )
+    agent2_end_time = first(
+        edge_arrival_time[agent2, (vertex, next_v)] for
+        next_v in outneighbors(network, vertex) if
+        value(edge_select_vars[agent2, (vertex, next_v)]) >= 0.9
+    )
+
+    if heuristic_conflict
+        if abs(value(vertex_arrival_time[agent1, vertex]) - value(agent2_end_time)) <=
+            abs(value(vertex_arrival_time[agent2, vertex]) - value(agent1_end_time))
+            @constraint(model, vertex_arrival_time[agent1, vertex] >= agent2_end_time)
+        else
+            @constraint(model, vertex_arrival_time[agent2, vertex] >= agent1_end_time)
+        end
+    else
         entry_sequence = @variable(model, lower_bound = 0, upper_bound = 1, binary = binary)
         @constraint(
             model,
             vertex_arrival_time[agent1, vertex] >=
-                edge_arrival_time[agent2, (vertex, next_v)] - time_horizon * entry_sequence
+                agent2_end_time - time_horizon * entry_sequence
         )
         @constraint(
             model,
             vertex_arrival_time[agent2, vertex] >=
-                edge_arrival_time[agent1, (vertex, next_v)] -
-            time_horizon * (1 - entry_sequence)
+                agent1_end_time - time_horizon * (1 - entry_sequence)
         )
     end
 end
@@ -238,20 +259,42 @@ function add_edge_conflict!(
     edge_arrival_time;
     time_horizon::Float64=100.0,
     binary::Bool=true,
+    heuristic_conflict::Bool=false,
 )
-    entry_sequence = @variable(model, lower_bound = 0, upper_bound = 1, binary = binary)
     ed2 = is_swap ? reverse(edge) : edge
 
-    @constraint(
-        model,
-        edge_arrival_time[agent1, edge] >=
-            vertex_arrival_time[agent2, ed2[2]] - time_horizon * entry_sequence
-    )
-    @constraint(
-        model,
-        edge_arrival_time[agent2, ed2] >=
-            vertex_arrival_time[agent1, edge[2]] - time_horizon * (1 - entry_sequence)
-    )
+    if heuristic_conflict
+        if abs(
+            value(edge_arrival_time[agent1, edge]) -
+            value(vertex_arrival_time[agent2, ed2[2]]),
+        ) <= abs(
+            value(edge_arrival_time[agent2, ed2]) -
+            value(vertex_arrival_time[agent1, edge[2]]),
+        )
+            @constraint(
+                model,
+                edge_arrival_time[agent1, edge] >= vertex_arrival_time[agent2, ed2[2]]
+            )
+        else
+            @constraint(
+                model,
+                edge_arrival_time[agent2, ed2] >= vertex_arrival_time[agent1, edge[2]]
+            )
+        end
+    else
+        entry_sequence = @variable(model, lower_bound = 0, upper_bound = 1, binary = binary)
+
+        @constraint(
+            model,
+            edge_arrival_time[agent1, edge] >=
+                vertex_arrival_time[agent2, ed2[2]] - time_horizon * entry_sequence
+        )
+        @constraint(
+            model,
+            edge_arrival_time[agent2, ed2] >=
+                vertex_arrival_time[agent1, edge[2]] - time_horizon * (1 - entry_sequence)
+        )
+    end
 end
 
 """
@@ -427,6 +470,7 @@ function mapf_continuous_time_dynamic_conflict(
     swap_constraint::Bool=true,
     time_horizon::Float64=100.0,
     timeout::Float64=-1.0,
+    heuristic_conflict::Bool=false,
 )
     @assert length(source_vertices) == length(target_vertices) "The number of source vertices does not match the number of target vertices"
     check_overlap_on_vertex(source_vertices, "Invalid source vertices for agents")
@@ -563,8 +607,10 @@ function mapf_continuous_time_dynamic_conflict(
                 vertex_signal.a2,
                 vertex_arrival_time,
                 edge_arrival_time,
+                edge_select_vars,
                 time_horizon;
                 binary=is_binary,
+                heuristic_conflict=heuristic_conflict,
             )
             continue
         end
@@ -583,6 +629,7 @@ function mapf_continuous_time_dynamic_conflict(
                 edge_arrival_time;
                 time_horizon=time_horizon,
                 binary=is_binary,
+                heuristic_conflict=heuristic_conflict,
             )
             continue
         end
