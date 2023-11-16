@@ -219,27 +219,21 @@ function mapf_discrete_time!(
     end
 
     # Objective
-    if ndims(edge_cost) == 3
-        edge_objective = sum(
-            edge_cost[agent_id, u, v] * edge_select_vars[agent_id, (u, v), t] for
-            (u, v) in edge_tuples, agent_id in 1:n_agents, t in 0:(time_duration - 1)
-        )
-    else
-        edge_objective = sum(
-            edge_cost[u, v] * edge_select_vars[agent_id, (u, v), t] for
-            (u, v) in edge_tuples, agent_id in 1:n_agents, t in 0:(time_duration - 1)
+    edge_objective = AffExpr(0.0)
+    for (u, v) in edge_tuples, agent_id in 1:n_agents, t in 0:(time_duration - 1)
+        add_to_expression!(
+            edge_objective,
+            right_align_get(edge_cost, agent_id, u, v),
+            edge_select_vars[agent_id, (u, v), t],
         )
     end
 
-    if ndims(vertex_cost) == 2
-        vertex_objective = sum(
-            vertex_cost[agent_id, v] * vertex_select_vars[agent_id, v, t] for
-            v in vertices(network), agent_id in 1:n_agents, t in 0:(time_duration - 1)
-        )
-    else
-        vertex_objective = sum(
-            vertex_cost[v] * vertex_select_vars[agent_id, v, t] for v in vertices(network),
-            agent_id in 1:n_agents, t in 0:(time_duration - 1)
+    vertex_objective = AffExpr(0.0)
+    for v in vertices(network), agent_id in 1:n_agents, t in 0:(time_duration - 1)
+        add_to_expression!(
+            vertex_objective,
+            right_align_get(vertex_cost, agent_id, v),
+            vertex_select_vars[agent_id, v, t],
         )
     end
 
@@ -273,6 +267,7 @@ Returns the selected vertices and edges for each agent
 - `vertex_binding::Bool`: whether required to stay and pay the cost for every traversal of vertex
 - `optimizer`: JuMP-compatible solver (default is `HiGHS.Optimizer`)
 - `silent::Bool`: turn of printing of model status printing
+- `timeout::Float64`: terminate the optimizer after timeout (unit in seconds)
 
 """
 function mapf_discrete_time(
@@ -290,10 +285,14 @@ function mapf_discrete_time(
     vertex_visit::Symbol=:auto, # `:auto` needs to wait if vertex cost > 0, `:yes` means always needs to wait, `:no` means not enforced
     optimizer=HiGHS.Optimizer,
     silent::Bool=true,
+    timeout::Float64=-1.0,
 )
     model = Model(optimizer)
     if silent
         set_silent(model)
+    end
+    if timeout > 0.0
+        set_time_limit_sec(model, timeout)
     end
 
     mapf_discrete_time!(
@@ -325,6 +324,14 @@ function mapf_discrete_time(
             v in selection, t in timestamps if vertex_selection_vars[agent_id, v, t] > 0.5
         ] for agent_id in agents
     ]
+    if integer
+        for (agent_id, agent_path) in enumerate(valid_vertices)
+            target_arrival_time = findfirst((
+                step[2] == target_vertices[agent_id] for step in agent_path
+            ))
+            valid_vertices[agent_id] = agent_path[1:target_arrival_time]
+        end
+    end
 
     # parse edges
     agents, selection, timestamps = axes(edge_selection_vars)
@@ -335,5 +342,5 @@ function mapf_discrete_time(
         ] for agent_id in agents
     ]
 
-    return valid_vertices, valid_edges
+    return valid_vertices, valid_edges, objective_value(model)
 end

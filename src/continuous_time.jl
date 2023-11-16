@@ -19,9 +19,9 @@ function add_continuous_connectivity_constraints!(
         enumerate(zip(source_vertices, target_vertices))
 
         # Agents start at their source vertex
-        @constraint(model, vertex_select_vars[agent_id, agent_source] == 1)
+        fix(vertex_select_vars[agent_id, agent_source], 1; force=true)
         # Agents end at their target vertex
-        @constraint(model, vertex_select_vars[agent_id, agent_target] == 1)
+        fix(vertex_select_vars[agent_id, agent_target], 1; force=true)
 
         # Agents leave from their sources
         @constraint(
@@ -107,8 +107,10 @@ function add_continuous_timing_constraints!(
         agent_source = source_vertices[agent_id]
 
         # Base case, the starting time of each agent from source vertices
-        @constraint(
-            model, vertex_arrival_time[agent_id, agent_source] == departure_time[agent_id]
+        fix(
+            vertex_arrival_time[agent_id, agent_source],
+            departure_time[agent_id];
+            force=true,
         )
 
         # Iterative case, all edges arrival time waits their previous arrival of source vertices
@@ -386,38 +388,28 @@ function mapf_continuous_time!(
     )
 
     # Objective
-    if ndims(edge_cost) == 3
-        edge_objective = sum(
-            edge_cost[agent_id, u, v] * edge_select_vars[agent_id, (u, v)] for
-            (u, v) in edge_tuples, agent_id in 1:n_agents
-        )
-    else
-        edge_objective = sum(
-            edge_cost[u, v] * edge_select_vars[agent_id, (u, v)] for (u, v) in edge_tuples,
-            agent_id in 1:n_agents
+    edge_objective = AffExpr(0.0)
+    for (u, v) in edge_tuples, agent_id in 1:n_agents
+        add_to_expression!(
+            edge_objective,
+            right_align_get(edge_cost, agent_id, u, v),
+            edge_select_vars[agent_id, (u, v)],
         )
     end
 
-    if ndims(vertex_cost) == 2
-        vertex_objective = sum(
-            vertex_cost[agent_id, v] * vertex_select_vars[agent_id, v] for
-            v in vertices(network), agent_id in 1:n_agents
-        )
-    else
-        vertex_objective = sum(
-            vertex_cost[v] * vertex_select_vars[agent_id, v] for v in vertices(network),
-            agent_id in 1:n_agents
+    vertex_objective = AffExpr(0.0)
+    for v in vertices(network), agent_id in 1:n_agents
+        add_to_expression!(
+            vertex_objective, right_align_get(vertex_cost, agent_id, v), vertex_select_vars[agent_id, v]
         )
     end
 
-    vertex_time_objective = sum(vertex_arrival_time)
-    edge_time_objective = sum(edge_arrival_time)
+    time_objective = AffExpr(0.0)
+    for (agent_id, agent_target) in enumerate(target_vertices)
+        add_to_expression!(time_objective, vertex_arrival_time[agent_id, agent_target])
+    end
 
-    @objective(
-        model,
-        Min,
-        edge_objective + vertex_objective + vertex_time_objective + edge_time_objective
-    )
+    @objective(model, Min, edge_objective + vertex_objective + time_objective)
 
     return model
 end
