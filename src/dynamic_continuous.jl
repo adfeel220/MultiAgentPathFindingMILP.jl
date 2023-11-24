@@ -1,3 +1,13 @@
+"""
+    nonzero_minimum(collection)
+Get the nonzero minimum value of a collection
+"""
+function nonzero_minimum(collection)
+    @assert !isempty(collection) "Cannot find minimum over an empty collection"
+    nonzero_elements = collection[collection .!= zero(eltype(collection))]
+    @assert !isempty(nonzero_elements) "No nonzero value in collection"
+    return minimum(nonzero_elements)
+end
 
 """
     parse_result(
@@ -19,10 +29,10 @@ by `model[edge_time_name]`. Default value is `:edge_time`
 """
 function parse_result(
     model::Model,
-    vertex_select_name::Symbol=:vertex_select,
-    edge_select_name::Symbol=:edge_select,
-    vertex_time_name::Symbol=:vertex_time,
-    edge_time_name::Symbol=:edge_time,
+    vertex_select_name=:vertex_select,
+    edge_select_name=:edge_select,
+    vertex_time_name=:vertex_time,
+    edge_time_name=:edge_time,
 )
     vertex_selection_vars = value.(model[vertex_select_name])
     edge_selection_vars = value.(model[edge_select_name])
@@ -186,20 +196,41 @@ function add_vertex_conflict!(
     vertex_arrival_time,
     edge_arrival_time,
     edge_select_vars,
-    time_horizon::Float64=100.0;
+    time_horizon=100.0;
     binary::Bool=true,
     heuristic_conflict::Bool=false,
+    safety_gap=1e-6,
 )
-    agent1_end_time = first(
+    # Obtain the end time of vertex occupancy by the arrival time of outgoing edges
+    agent1_end_time_candidates = [
         edge_arrival_time[agent1, (vertex, next_v)] for
         next_v in outneighbors(network, vertex) if
         value(edge_select_vars[agent1, (vertex, next_v)]) >= 0.9
-    )
-    agent2_end_time = first(
+    ]
+    agent2_end_time_candidates = [
         edge_arrival_time[agent2, (vertex, next_v)] for
         next_v in outneighbors(network, vertex) if
         value(edge_select_vars[agent2, (vertex, next_v)]) >= 0.9
-    )
+    ]
+
+    # if not found (no outgoing edge is selected), it means the end time is Inf
+    if isempty(agent1_end_time_candidates)
+        @constraint(
+            model,
+            vertex_arrival_time[agent1, vertex] >=
+                first(agent2_end_time_candidates) + safety_gap
+        )
+        return nothing
+    end
+    agent1_end_time = first(agent1_end_time_candidates)
+
+    if isempty(agent2_end_time_candidates)
+        @constraint(
+            model, vertex_arrival_time[agent2, vertex] >= agent1_end_time + safety_gap
+        )
+        return nothing
+    end
+    agent2_end_time = first(agent2_end_time_candidates)
 
     if heuristic_conflict
         if abs(value(vertex_arrival_time[agent1, vertex]) - value(agent2_end_time)) <=
@@ -213,12 +244,12 @@ function add_vertex_conflict!(
         @constraint(
             model,
             vertex_arrival_time[agent1, vertex] >=
-                agent2_end_time - time_horizon * entry_sequence
+                agent2_end_time + safety_gap - time_horizon * entry_sequence
         )
         @constraint(
             model,
             vertex_arrival_time[agent2, vertex] >=
-                agent1_end_time - time_horizon * (1 - entry_sequence)
+                agent1_end_time + safety_gap - time_horizon * (1 - entry_sequence)
         )
     end
 end
@@ -260,6 +291,7 @@ function add_edge_conflict!(
     time_horizon::Float64=100.0,
     binary::Bool=true,
     heuristic_conflict::Bool=false,
+    safety_gap=1e-4,
 )
     ed2 = is_swap ? reverse(edge) : edge
 
@@ -287,12 +319,14 @@ function add_edge_conflict!(
         @constraint(
             model,
             edge_arrival_time[agent1, edge] >=
-                vertex_arrival_time[agent2, ed2[2]] - time_horizon * entry_sequence
+                vertex_arrival_time[agent2, ed2[2]] + safety_gap -
+            time_horizon * entry_sequence
         )
         @constraint(
             model,
             edge_arrival_time[agent2, ed2] >=
-                vertex_arrival_time[agent1, edge[2]] - time_horizon * (1 - entry_sequence)
+                vertex_arrival_time[agent1, edge[2]] + safety_gap -
+            time_horizon * (1 - entry_sequence)
         )
     end
 end
@@ -471,6 +505,7 @@ function mapf_continuous_time_dynamic_conflict(
     time_horizon::Float64=100.0,
     timeout::Float64=-1.0,
     heuristic_conflict::Bool=false,
+    epsilon=1e-4 * min(nonzero_minimum(vertex_wait_time), nonzero_minimum(edge_wait_time)),
 )
     @assert length(source_vertices) == length(target_vertices) "The number of source vertices does not match the number of target vertices"
     check_overlap_on_vertex(source_vertices, "Invalid source vertices for agents")
@@ -611,6 +646,7 @@ function mapf_continuous_time_dynamic_conflict(
                 time_horizon;
                 binary=is_binary,
                 heuristic_conflict=heuristic_conflict,
+                safety_gap=epsilon,
             )
             continue
         end
@@ -630,6 +666,7 @@ function mapf_continuous_time_dynamic_conflict(
                 time_horizon=time_horizon,
                 binary=is_binary,
                 heuristic_conflict=heuristic_conflict,
+                safety_gap=epsilon,
             )
             continue
         end

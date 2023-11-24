@@ -56,9 +56,7 @@ function check_overlap_on_vertex(
 end
 
 """
-    detect_vertex_conflict(
-        vertices_timing, edges_timing; epsilon
-    )
+    detect_vertex_conflict(vertices_timing, edges_timing)
 Return a NamedTuple of value `(v=vertex, a1=agent1, a2=agent2)` indicating the first detected
 vertex conflict between `agent1` and `agent2` on `vertex`. Return default value of all `-1` if
 no conflict is detected.
@@ -69,15 +67,10 @@ no conflict is detected.
 `vertices_timing[agent][nth_hop] = (time_of_arrival, vertex)`
 - `edges_timing::Vector{Vector{Tuple{T,Tuple{Int,Int}}}}`: The timing on edge traversal of each agent,
 `edges_timing[agent][nth_hop] = (time_of_arrival, (from_vertex, to_vertex))`
-
-# Keyword arguments
-
-- `epsilon::{T<:Real}`: a small value to distinguish floating point equality, by default `1e-9`
 """
 function detect_vertex_conflict(
     vertices_timing::Vector{Vector{Tuple{T,Int}}},
     edges_timing::Vector{Vector{Tuple{T,Tuple{Int,Int}}}};
-    epsilon::T=1e-9,
 )::NamedTuple where {T<:Real}
 
     # At each vertex, the occupancy of agent as (is_start, agent_id, timestamp)
@@ -85,31 +78,34 @@ function detect_vertex_conflict(
 
     for (agent_id, itinerary) in enumerate(vertices_timing)
         for (step_id, (timestamp, vertex)) in enumerate(itinerary)
-            if step_id == length(itinerary)
-                continue
-            end
-
-            finish_time, (from_v, to_v) = edges_timing[agent_id][step_id]
-            if timestamp ≈ finish_time
-                continue
-            end
-
+            # Push to existing key if exists, otherwise create a new vector to store
             if haskey(vertex_occupancy, vertex)
                 push!(vertex_occupancy[vertex], (true, agent_id, timestamp))
             else
                 vertex_occupancy[vertex] = [(true, agent_id, timestamp)]
             end
 
+            # The final step of the itinerary is the target vertex, it stays at the vertex so
+            # the departure time is infinity (no need to inquire edge variable)
+            if step_id == length(itinerary)
+                push!(vertex_occupancy[vertex], (false, agent_id, Inf))
+                continue
+            end
+
+            finish_time, (from_v, to_v) = edges_timing[agent_id][step_id]
+
             @assert from_v == vertex "path not connected for agent $agent_id on vertex $vertex"
 
-            push!(vertex_occupancy[from_v], (false, agent_id, finish_time - epsilon))
+            push!(vertex_occupancy[from_v], (false, agent_id, finish_time))
         end
     end
 
     # Check if any violation, i.e. for any vertex, later agent must enter after previous agent leaves
     for (vertex, occupancy) in vertex_occupancy
+        # sort by timestamp
         sort!(occupancy; by=(x -> x[3]))
 
+        # Conflict happens when there are 2 consecutive starting or ending events
         for event_id in 1:2:(length(occupancy) - 1)
             is_start1, agent1, timestamp1 = occupancy[event_id]
             is_start2, agent2, timestamp2 = occupancy[event_id + 1]
@@ -126,7 +122,7 @@ end
 
 """
     detect_edge_conflict(
-        vertices_timing, edges_timing; detect_swap, epsilon
+        vertices_timing, edges_timing; detect_swap
     )
 Return a NamedTuple of value `(e=edge_tuple, a1=agent1, a2=agent2, swap=is_swap)` indicating the first detected
 edge conflict between `agent1` and `agent2` on `edge_tuple`. The violation is a swap conflict if `swap` is `true`.
@@ -142,13 +138,11 @@ Return default value of all `-1` if no conflict is detected.
 # Keyword arguments
 
 - `detect_swap::Bool`: whether to detect edge swapping conflict, by default true
-- `epsilon::{T<:Real}`: a small value to distinguish floating point equality, by default `1e-9`
 """
 function detect_edge_conflict(
     vertices_timing::Vector{Vector{Tuple{T,Int}}},
     edges_timing::Vector{Vector{Tuple{T,Tuple{Int,Int}}}};
     detect_swap::Bool=true,
-    epsilon::T=1e-9,
 )::NamedTuple where {T<:Real}
 
     # At each edge, the occupancy of agent as (is_start, agent_id, timestamp, is_inverted)
@@ -172,7 +166,7 @@ function detect_edge_conflict(
                 edge_occupancy[edge] = [(true, agent_id, timestamp, inverted)]
             end
 
-            push!(edge_occupancy[edge], (false, agent_id, finish_time - epsilon, inverted))
+            push!(edge_occupancy[edge], (false, agent_id, finish_time, inverted))
         end
     end
 
@@ -186,7 +180,11 @@ function detect_edge_conflict(
 
             # agent2 enters edge while agent1 has not left yet
             if is_start1 == is_start2
-                return (e=edge, a1=agent1, a2=agent2, swap=is_inverted1 != is_inverted2)
+                # align edge direction with agent 1
+                aligned_edge = is_inverted1 ? reverse(edge) : edge
+                return (
+                    e=aligned_edge, a1=agent1, a2=agent2, swap=is_inverted1 != is_inverted2
+                )
             end
         end
     end
