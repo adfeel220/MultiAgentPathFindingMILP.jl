@@ -1,14 +1,15 @@
 
 """
 A structure to hold all necessary information for executing an MAPF solver (either continuous or discrete time)
-`T`: type for waiting time;  `C`: type for costs; `D`: type for departure time. All `<:Real`
+`G`: type for graph, `T`: type for waiting time; `VC`: type for vertex costs; `EC`: type for edge costs;
+`D`: type for departure time
 """
-@kwdef mutable struct MapfConfig{T<:Real,C<:Real,D<:Real}
-    network::DiGraph
+@kwdef mutable struct MapfConfig{G<:AbstractGraph{Int},T<:Real,VC,EC,D<:Real}
+    network::G
     source_vertices::Vector{Int}
     target_vertices::Vector{Int}
-    vertex_cost::Array{C} = ones(Float64, nv(network))
-    edge_cost::Array{C} = ones(Float64, (nv(network), nv(network)))
+    vertex_cost::VC = ones(Float64, nv(network))
+    edge_cost::EC = ones(Float64, (nv(network), nv(network)))
     vertex_wait_time::Array{T} = zeros(Float64, nv(network))
     edge_wait_time::Array{T} = ones(Float64, (nv(network), nv(network)))
     departure_time::Array{D} = zeros(Float64, length(source_vertices))
@@ -21,10 +22,13 @@ A structure to hold all necessary information for executing an MAPF solver (eith
     timeout::Float64 = -1.0
 end
 nagents(config::MapfConfig) = length(config.source_vertices)
+function Base.show(io::IO, config::MapfConfig)
+    show(io, "MAPF configuration of $(nagents(config)) agents on a {$(nv(config.network)),$(ne(config.network))} network")
+end
 
 """
     mapf_continuous_time(config)
-Execute a continuous-time MAPF with a configuration
+Execute a continuous-time MAPF with a configuration. Extra keyword arguments can be added to the execution.
 
 # Arguments
 - `config::MapfConfig`: Configuration struct containing all necessary information
@@ -48,7 +52,7 @@ function mapf_continuous_time(config::MapfConfig; kwargs...)
 end
 """
     mapf_continuous_time_dynamic_conflict(config)
-Execute a dynamic constraint continuous-time MAPF with a configuration
+Execute a dynamic constraint continuous-time MAPF with a configuration.  Extra keyword arguments can be added to the execution.
 
 # Arguments
 - `config::MapfConfig`: Configuration struct containing all necessary information
@@ -76,9 +80,9 @@ end
 Execute a discrete-time MAPF with all the information in a config file
 
 # Arguments
-- `config::MapfConfig`: Configuration struct containing all necessary information
+- `config::MapfConfig`: Configuration struct containing all necessary information. Extra keyword arguments can be added to the execution.
 """
-function mapf_discrete_time(config::MapfConfig, kwargs...)
+function mapf_discrete_time(config::MapfConfig; kwargs...)
     return mapf_discrete_time(
         config.network,
         config.source_vertices,
