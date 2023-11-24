@@ -153,7 +153,7 @@ function directional_star(a::Int; edge_break::Int=1, timeout::Float64=-1.0)
         target_vertices=target_vertices,
         vertex_cost=discrete_vertex_cost,
         edge_cost=discrete_edge_cost,
-        time_duration=5 * a * edge_break,
+        time_duration=2 * a + 4 * edge_break - 1,  # 4: V+E for each agent other than middle point, 2*a: competing middle
         timeout=timeout,
     )
 
@@ -233,7 +233,7 @@ function grid_cross(row::Int, column::Int; edge_break::Int=1, timeout::Float64=-
         target_vertices=target_vertices,
         vertex_cost=discrete_vertex_cost,
         edge_cost=discrete_edge_cost,
-        time_duration=2 * (row + column) * num_agent * edge_break,
+        time_duration=2 * max(row, column) * (2 + min(row, column) + edge_break),
         timeout=timeout,
     )
 
@@ -301,7 +301,9 @@ function line_overlap(
         vertex_cost=discrete_vertex_cost,
         edge_cost=discrete_edge_cost,
         departure_time=[Int(t) for t in departure_time],
-        time_duration=2 * (n + a) * a * edge_break,
+        time_duration=(
+            delayed_departure ? n * (2 + edge_break) + a * edge_break : n * (2 + edge_break)
+        ),
         timeout=timeout,
     )
 
@@ -364,7 +366,7 @@ function wheel_pass(a::Int; edge_break::Int=1, shift::Int=1, timeout::Float64=-1
         target_vertices=target_vertices,
         vertex_cost=discrete_vertex_cost,
         edge_cost=discrete_edge_cost,
-        time_duration=a^2 * edge_break,
+        time_duration=2 * a + 4 * edge_break - 1,
         timeout=timeout,
     )
 
@@ -428,7 +430,7 @@ function circular_ladder_pass(
 
     discrete_network = break_segments(continuous_network, edge_break)
     discrete_vertex_cost = ones(Float64, nv(discrete_network))
-    discrete_edge_cost = ones(Float64, (nv(discrete_network), nv(discrete_network)))
+    discrete_edge_cost = 5 .* ones(Float64, (nv(discrete_network), nv(discrete_network)))
     # no cost to stay at the target, so they can stay as long as they want
     for v in target_vertices
         discrete_vertex_cost[v] = 0.0
@@ -440,7 +442,7 @@ function circular_ladder_pass(
         target_vertices=target_vertices,
         vertex_cost=discrete_vertex_cost,
         edge_cost=discrete_edge_cost,
-        time_duration=2 * a^2 * edge_break,
+        time_duration=3 * a + 4 * edge_break - 1,
         timeout=timeout,
     )
 

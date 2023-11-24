@@ -23,7 +23,10 @@ A structure to hold all necessary information for executing an MAPF solver (eith
 end
 nagents(config::MapfConfig) = length(config.source_vertices)
 function Base.show(io::IO, config::MapfConfig)
-    show(io, "MAPF configuration of $(nagents(config)) agents on a {$(nv(config.network)),$(ne(config.network))} network")
+    return show(
+        io,
+        "MAPF configuration of $(nagents(config)) agents on a {$(nv(config.network)),$(ne(config.network))} network",
+    )
 end
 
 """
